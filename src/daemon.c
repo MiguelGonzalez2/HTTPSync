@@ -5,6 +5,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/***
+*FUNCION: int daemon()
+*ARGS_IN: none
+*DESCRIPCION: Convierte el proceso en un daemon, pasando a segundo plano
+y dejando de ser interactivo.
+*ARGS_OUT: Devuelve EXIT_SUCCESS si funciono correctamente
+y EXIT_FAILURE en caso de que algo falle.
+***/
+
+
 int daemonProcess(){
 	pid_t hijoPID;
 	int controlError;
