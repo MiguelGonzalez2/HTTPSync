@@ -89,19 +89,19 @@ int socket_close(int fd){
 int socket_accept(int socket_fd, int *port, int *addr){
 	
 	int conn_fd;
-	struct sockaddr_in addr;
+	struct sockaddr_in saddr;
 	socklen_t len = sizeof(struct sockaddr_in);
 	
 	if(port == NULL || addr == NULL) return -1;
 	
-	conn_fd = accept(socket_fd, (struct sockaddr *) addr, &len);
+	conn_fd = accept(socket_fd, (struct sockaddr *) &saddr, &len);
 	if(conn_fd == -1){
 	   return -1;
 	}
 	
 	/*Extraemos las direcciones de la conexion entrante*/
-	*port = ntohs(addr.sin_port);
-	*addr = ntohl(addr.sin_addr.s_addr);
+	*port = ntohs(saddr.sin_port);
+	*addr = ntohl(saddr.sin_addr.s_addr);
 	
 	return conn_fd;
 }
@@ -157,7 +157,7 @@ int socket_send(int socket_fd, char *data, int size){
 ****/
 int socket_receive(int socket_fd, char *data, int size){
 	
-	int i, num_chunks, nbytes, ret, read = 0;
+	int i, num_chunks, nbytes, ret, nread = 0;
 	
 	if(data == NULL || size <= 0){
 	    return -1;
@@ -178,12 +178,12 @@ int socket_receive(int socket_fd, char *data, int size){
 		/*Escribimos*/
 		ret = read(socket_fd, data + i*CHUNK_SIZE, nbytes); 
 		if(ret == -1){
-			return read;
+			return nread;
 		}
 		
-		read += ret;
+		nread += ret;
 	}
 	
-	return read;
+	return nread;
 	
 }
