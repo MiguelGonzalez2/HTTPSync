@@ -12,9 +12,9 @@ int daemonProcess(){
 	
 	/*Fork haciendo que el padre termine*/
 	hijoPID = fork();
-	if(hijoPID == -1){
+	if(hijoPID < -1){
 		exit(EXIT_FAILURE);
-	}else if(hijoPID == 0){
+	}else if(hijoPID > 0){
 		/*Proceso padre*/
 		exit(EXIT_SUCCESS);
 	}
@@ -28,9 +28,9 @@ int daemonProcess(){
 
 	/*Fork haciendo que el padre termine*/
 	hijoPID = fork();
-	if(hijoPID == -1){
+	if(hijoPID < -1){
 		exit(EXIT_FAILURE);
-	}else if(hijoPID == 0){
+	}else if(hijoPID > 0){
 		/*Proceso padre*/
 		exit(EXIT_SUCCESS);
 	}
