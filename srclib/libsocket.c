@@ -4,7 +4,7 @@
 * conexiones.
 *
 * @author Miguel Gonzalez, Alejandro Bravo
-* @version 1.0
+* @version 1.0b
 * @date 06-02-2020
 */
 
@@ -107,7 +107,7 @@ int socket_accept(int socket_fd, int *port, int *addr){
 }
 
 /****
-* FUNCIÓN: int socket_send(char *data, int size)
+* FUNCIÓN: int socket_send(int socket_fd char *data, int size)
 * ARGS_IN: int socket_fd: Descriptor del socket/conexion a la que enviar los datos.
 *          char* data - comienzo de los bytes que se desean transferir.
 *          int size: Numero de bytes a transferir.
@@ -128,7 +128,7 @@ int socket_send(int socket_fd, char *data, int size){
 	/*Los vamos enviando sucesivamente*/
 	for(i = 0; i < num_chunks; i++){
 		/*Calculamos cuantos bytes van en este chunk*/
-		if(i == num_chunks){
+		if(i == (num_chunks-1)){
 		    nbytes = size - CHUNK_SIZE*i;	
 		} else {
 			nbytes = CHUNK_SIZE;
@@ -169,7 +169,7 @@ int socket_receive(int socket_fd, char *data, int size){
 	/*Los vamos leyendo sucesivamente*/
 	for(i = 0; i < num_chunks; i++){
 		/*Calculamos cuantos bytes van en este chunk*/
-		if(i == num_chunks){
+		if(i == (num_chunks-1)){
 		    nbytes = size - CHUNK_SIZE*i;	
 		} else {
 			nbytes = CHUNK_SIZE;
