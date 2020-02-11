@@ -7,8 +7,11 @@
 *@date 08-02-2020
 **/
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <signal.h>
 #include "libPoolThreads.h"
-#include <sys/signal.h>
  
 struct _thread_args{
     int num_working;
@@ -75,7 +78,7 @@ pool_thread *pool_th_ini(task_function func, int num_threads, int server_fd){
             }
 
             for(i = 0; i < num_threads; i++){
-                if(pthread_create(&p_threads->tid[i], NULL, (void *)&th_main, p_threads->args) !=0){
+                if(pthread_create(&p_threads->tid[i], NULL, (void * (*)(void *))&th_main, p_threads->args) !=0){
                     fprintf(stderr,"No se pudo iniciar uno de los threads");
                     error = 1;
                     break;
@@ -139,7 +142,6 @@ void th_main(struct _thread_args *argumentos){
 *ARGS_OUT: none
 ****/
 void pool_th_destroy(pool_thread *p_threads){
-    int i;
     pthread_mutex_destroy(p_threads->args->shared_mutex);
     free(p_threads->args->shared_mutex);
     free(p_threads->tid);

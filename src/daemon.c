@@ -1,9 +1,18 @@
+/**
+*Fuente de la funcion auxiliar de demonizacion.
+*
+*@author Alejandro Bravo, Miguel Gonzalez
+*@version 1.0
+*@date 08-02-2020
+**/
+
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <signal.h>
 
 /***
 *FUNCION: int daemon()
@@ -13,8 +22,6 @@ y dejando de ser interactivo.
 *ARGS_OUT: Devuelve EXIT_SUCCESS si funciono correctamente
 y EXIT_FAILURE en caso de que algo falle.
 ***/
-
-
 int daemonProcess(){
 	pid_t hijoPID;
 	int controlError;
@@ -63,4 +70,5 @@ int daemonProcess(){
 	dup2(fd, STDIN_FILENO);
 	dup2(fd, STDOUT_FILENO);
 	dup2(fd, STDERR_FILENO);
+        return EXIT_SUCCESS;
 }

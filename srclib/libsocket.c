@@ -35,8 +35,8 @@ int socket_server_init(char *ip, int port, int listen_size){
 	int socket_fd;
 	struct sockaddr_in addr;
 	
-	/*Comprobacion de errores y puertos reservados*/
-	if(port < 1024 || listen_size <= 0) return -1;
+	/*Comprobacion de errores*/
+	if(port < 1 || listen_size <= 0) return -1;
 	
 	/*Apertura de socket TCP*/
 	socket_fd = socket(AF_INET, SOCK_STREAM, 0);

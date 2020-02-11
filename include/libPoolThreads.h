@@ -1,5 +1,5 @@
 /**
-*Fuente de la libreria de gestion de la pool de hilos. Proporciona una interfaz
+*Cabecera de la libreria de gestion de la pool de hilos. Proporciona una interfaz
 *para crear la pool, destruir la pool y una función de prueba para los hilos.
 *
 *@author Alejandro Bravo, Miguel Gonzalez
@@ -9,10 +9,6 @@
 
 #ifndef POOL_THREADS
 #define POOL_THREADS
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
 
 typedef struct _pool_thread pool_thread; /*!< Pool de hilos*/
 typedef int (*task_function)(int server_fd); /*!< Funcion que ejecutara cada hilo. Debe devolver 0 en exito.*/
