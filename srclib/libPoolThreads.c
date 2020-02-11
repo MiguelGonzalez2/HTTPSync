@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <signal.h>
+#include <syslog.h>
 #include "libPoolThreads.h"
  
 struct _thread_args{
@@ -51,6 +52,7 @@ pool_thread *pool_th_ini(task_function func, int num_threads, int server_fd){
     if(p_threads == NULL){
         return NULL;
     }
+
     p_threads->args = malloc(sizeof(struct _thread_args));
     if(p_threads->args == NULL){
         free(p_threads);
@@ -79,7 +81,7 @@ pool_thread *pool_th_ini(task_function func, int num_threads, int server_fd){
 
             for(i = 0; i < num_threads; i++){
                 if(pthread_create(&p_threads->tid[i], NULL, (void * (*)(void *))&th_main, p_threads->args) !=0){
-                    fprintf(stderr,"No se pudo iniciar uno de los threads");
+                    syslog(LOG_ERR, "No se pudo iniciar uno de los threads");
                     error = 1;
                     break;
                 }
@@ -115,21 +117,21 @@ void th_main(struct _thread_args *argumentos){
     int status;
 
     while(!(argumentos->stop)){
-    if(!(argumentos->stop)){
-        pthread_mutex_lock(argumentos->shared_mutex);
-        (argumentos->num_working)++;
-        pthread_mutex_unlock(argumentos->shared_mutex);  
+    	if(!(argumentos->stop)){
+        	pthread_mutex_lock(argumentos->shared_mutex);
+        	(argumentos->num_working)++;
+        	pthread_mutex_unlock(argumentos->shared_mutex);  
 
-        /*Llamada a la funcion de trabajo*/
-        status = argumentos->function(argumentos->server_fd);
-        if(status != 0){
-            pthread_exit(NULL);
-        }
+        	/*Llamada a la funcion de trabajo*/
+        	status = argumentos->function(argumentos->server_fd);
+        	if(status != 0){
+            		pthread_exit(NULL);
+        	}
 
-        pthread_mutex_lock(argumentos->shared_mutex);
-        (argumentos->num_working)--;
-        pthread_mutex_unlock(argumentos->shared_mutex);  
-    }
+        	pthread_mutex_lock(argumentos->shared_mutex);
+        	(argumentos->num_working)--;
+        	pthread_mutex_unlock(argumentos->shared_mutex);  
+    	}
     }
     
     pthread_exit(NULL);

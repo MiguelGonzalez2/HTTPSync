@@ -90,26 +90,27 @@ int main(int argc, char **argv){
 
    /*DAEMON*/ 
    if(daemonProcess() != EXIT_SUCCESS){
-       printf("Error creando daemon\n");
+       syslog(LOG_ERR, "ServerHTTP: Error creando daemon.\n");
        return EXIT_FAILURE;
    }
    
    /*Ignoramos SIGINT, es la que cerrara de manera limpia el server*/
    if(end_handler_signal(SIGINT) != 0){
-
+       syslog(LOG_ERR, "ServerHTTP: Error creando el manejador de la senial SIGINT.\n");
+       return EXIT_FAILURE;
    }
 
    /*Abrimos el servidor*/
    server_fd = socket_server_init(NULL, HTTP_SERVER_PORT, LISTEN_QUEUE);
    if(server_fd == -1){
-       syslog(LOG_ERR, "ServerHTTP: Error inicializando server\n");
+       syslog(LOG_ERR, "ServerHTTP: Error inicializando server.\n");
        return EXIT_FAILURE;
    }
 
    /*Inicializamos el trabajo*/
    pool = pool_th_ini(&thread_work, THREAD_NO, server_fd);
    if(pool == NULL){
-       syslog(LOG_ERR, "ServerHTTP: Error inicializando pool de hilos\n");
+       syslog(LOG_ERR, "ServerHTTP: Error inicializando pool de hilos.\n");
        socket_close(server_fd);
        return EXIT_FAILURE;
    }
@@ -117,14 +118,20 @@ int main(int argc, char **argv){
    /*A la espera de una señal de cierre*/
    pause();
 
-   /*Paramos los hilos*/
+   syslog(LOG_INFO, "ServerHTTP: Inicio de cierre del servidor.\n");
+
+   /*Decimos a los hilos que paren*/
    pool_th_stop(pool);
    /*Esperamos a que acaben*/
    pool_th_wait(pool);
+   syslog(LOG_INFO, "ServerHTTP: Servidor esperando a que los threads paren.\n");
+
    /*Liberamos la pool*/
    pool_th_destroy(pool);
-
+   /*Cerramos el socket*/ 
    socket_close(server_fd);
+
+   syslog(LOG_INFO, "ServerHTTP: Cierre del servidor con exito\n");
    
-   exit(EXIT_FAILURE);
+   exit(EXIT_SUCCESS);
 }
