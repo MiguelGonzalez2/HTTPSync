@@ -8,10 +8,12 @@
 **/
 
 #include "libPoolThreads.h"
+#include <sys/signal.h>
  
 struct _thread_args{
     int num_working;
     int stop;
+    int server_fd;
     pthread_mutex_t *shared_mutex;
     task_function function;
 };
@@ -28,11 +30,12 @@ void th_main(struct _thread_args *argumentos);
 *FUNCIÓN: pool_thread  *pool_th_ini(void *func, int num_threads)
 *ARGS_IN: task_function func: Funcion que ejecutara cada hilo.
           int num_threads: numero de hilos a correr.
+          int server_fd: Descriptor del server que opera los hilos.
 *DESCRIPCION: Crea un pool de threads con una cantidad de threads indicada
 *por la variable num_threads.
-*ARGS_OUT: pool_thread - Devuelve la pool de threads.
+*ARGS_OUT: pool_thread* - Devuelve la pool de threads, o NULL si hay error.
 ****/
-pool_thread *pool_th_ini(task_function func, int num_threads){
+pool_thread *pool_th_ini(task_function func, int num_threads, int server_fd){
 
     pool_thread *p_threads;
     int i;
@@ -65,6 +68,7 @@ pool_thread *pool_th_ini(task_function func, int num_threads){
 	    p_threads->args->num_working = 0;
 	    p_threads->args->stop = 0;
             p_threads->args->function = func;
+            p_threads->args->server_fd = server_fd;
 
             if(pthread_mutex_init(p_threads->args->shared_mutex, NULL) != 0){
                 error = 1;
@@ -105,6 +109,8 @@ pool_thread *pool_th_ini(task_function func, int num_threads){
 ****/
 void th_main(struct _thread_args *argumentos){
 
+    int status;
+
     while(!(argumentos->stop)){
     if(!(argumentos->stop)){
         pthread_mutex_lock(argumentos->shared_mutex);
@@ -112,7 +118,10 @@ void th_main(struct _thread_args *argumentos){
         pthread_mutex_unlock(argumentos->shared_mutex);  
 
         /*Llamada a la funcion de trabajo*/
-        argumentos->function();
+        status = argumentos->function(argumentos->server_fd);
+        if(status != 0){
+            pthread_exit(NULL);
+        }
 
         pthread_mutex_lock(argumentos->shared_mutex);
         (argumentos->num_working)--;
@@ -145,7 +154,13 @@ void pool_th_destroy(pool_thread *p_threads){
 *ARGS_OUT: none
 ****/
 void pool_th_stop(pool_thread *p_threads){
+    int i;
     p_threads->args->stop = 1;
+
+    /*Sacar a los threads de bloqueos*/
+    for(i = 0; i < p_threads->num_threads; i++){
+        pthread_kill(p_threads->tid[i], SIGINT);
+    }
 }
 
 /****
@@ -159,6 +174,5 @@ void pool_th_wait(pool_thread *p_threads){
 
     for(i = 0; i < p_threads->num_threads; i++){
         pthread_join(p_threads->tid[i], NULL);
-        printf("Joined thread %d\n", i);
     }
 }

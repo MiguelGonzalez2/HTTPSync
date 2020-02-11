@@ -15,17 +15,18 @@
 #include <pthread.h>
 
 typedef struct _pool_thread pool_thread; /*!< Pool de hilos*/
-typedef void (*task_function)(); /*!< Funcion que ejecutara cada hilo*/
+typedef int (*task_function)(int server_fd); /*!< Funcion que ejecutara cada hilo. Debe devolver 0 en exito.*/
 
 /****
 *FUNCIÓN: pool_thread  *pool_th_ini(void *func, int num_threads)
 *ARGS_IN: task_function func: Funcion que ejecutara cada hilo.
           int num_threads: numero de hilos a correr.
+          int server_fd: Descriptor del server que opera los hilos.
 *DESCRIPCION: Crea un pool de threads con una cantidad de threads indicada
 *por la variable num_threads.
-*ARGS_OUT: pool_thread - Devuelve la pool de threads.
+*ARGS_OUT: pool_thread* - Devuelve la pool de threads, o NULL si hay error.
 ****/
-pool_thread *pool_th_ini(task_function func, int num_threads);
+pool_thread *pool_th_ini(task_function func, int num_threads, int server_fd);
 
 /****
 *FUNCIÓN: void pool_th_destroy(pool_thread p_threads, int numThreads)
