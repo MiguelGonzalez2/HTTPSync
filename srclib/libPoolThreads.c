@@ -1,5 +1,5 @@
 /**
-*Fuente de la libreria de getion de la pool de hilos. Proporciona una interfaz
+*Fuente de la libreria de gestion de la pool de hilos. Proporciona una interfaz
 *para crear la pool, destruir la pool y una función de prueba para los hilos.
 *
 *@author Alejandro Bravo, Miguel Gonzalez
@@ -7,75 +7,80 @@
 *@date 08-02-2020
 **/
 
-#include "../include/libPoolThreads.h"
+#include "libPoolThreads.h"
+ 
+struct _thread_args{
+    int num_working;
+    int stop;
+    pthread_mutex_t *shared_mutex;
+    task_function function;
+};
 
 struct _pool_thread{
     pthread_t *tid;
     int num_threads;
-    int *num_working;
-    int *stop;
-    pthread_mutex_t shared_mutex;
-    void *function;
+    struct _thread_args *args;
 };
- 
-typedef struct{
-    int *num_working;
-    int *stop;
-    pthread_mutex_t shared_mutex;
-    void *function;
-}thread_args;
 
-void th_main(void *args);
+void th_main(struct _thread_args *argumentos);
 
 /****
-*FUNCIÓN: pool_thread  *pool_th_ini()
-*ARGS_IN: func - Puntero a la funcion que procesan los hilos.
-          int num_threads - Numero de threads a crear.
+*FUNCIÓN: pool_thread  *pool_th_ini(void *func, int num_threads)
+*ARGS_IN: task_function func: Funcion que ejecutara cada hilo.
+          int num_threads: numero de hilos a correr.
 *DESCRIPCION: Crea un pool de threads con una cantidad de threads indicada
 *por la variable num_threads.
 *ARGS_OUT: pool_thread - Devuelve la pool de threads.
 ****/
-pool_thread  *pool_th_ini(void *func, int num_threads){
+pool_thread *pool_th_ini(task_function func, int num_threads){
 
     pool_thread *p_threads;
-    thread_args *args;
     int i;
     int error = 0;
 
     if(num_threads <= 0) return NULL;
 
+    /*Reservas para la pool de hilos*/
     p_threads = malloc(sizeof(pool_thread));
-    p_threads->stop = malloc(sizeof(int));
-    p_threads->num_working = malloc(sizeof(int));
-    p_threads->tid = malloc(sizeof(pthread_t) * num_threads);
-
-    args = malloc(sizeof(args));
-    args->stop = malloc(sizeof(int));
-    args->num_working = malloc(sizeof(int));
-
-    p_threads->num_threads = 0;
-    *p_threads->num_working = 0;
-    *p_threads->stop = 0;
-
-    if(pthread_mutex_init(&p_threads->shared_mutex, NULL) != 0){
-        free(p_threads);
-        fprintf(stderr,"No se pudo iniciar el semáforo");
+    if(p_threads == NULL){
         return NULL;
     }
-    
-    args->shared_mutex = p_threads->shared_mutex;
-    args->function = func;
-    args->stop = p_threads->stop;
-    args->num_working = p_threads->num_working;
-
-    for(i = 0; i < num_threads; i++){
-        if(pthread_create(&p_threads->tid[i], NULL, (void *)&th_main, args) !=0){
-            fprintf(stderr,"No se pudo iniciar uno de los threads");
-            error = 1;
-            break;
-        }
-        p_threads->num_threads++;
+    p_threads->args = malloc(sizeof(struct _thread_args));
+    if(p_threads->args == NULL){
+        free(p_threads);
+        return NULL;
     }
+
+    p_threads->tid = malloc(sizeof(pthread_t) * num_threads);
+    p_threads->args->shared_mutex = malloc(sizeof(pthread_mutex_t));
+
+    if(p_threads->tid == NULL || p_threads->args->shared_mutex == NULL){
+        error = 1;
+    }
+    
+    /*Inicializamos valores*/
+    if(error == 0){
+
+	    p_threads->num_threads = 0;
+	    p_threads->args->num_working = 0;
+	    p_threads->args->stop = 0;
+            p_threads->args->function = func;
+
+            if(pthread_mutex_init(p_threads->args->shared_mutex, NULL) != 0){
+                error = 1;
+            }
+
+            for(i = 0; i < num_threads; i++){
+                if(pthread_create(&p_threads->tid[i], NULL, (void *)&th_main, p_threads->args) !=0){
+                    fprintf(stderr,"No se pudo iniciar uno de los threads");
+                    error = 1;
+                    break;
+                }
+                p_threads->num_threads++;
+             }
+    }
+   
+    /*Control de errores*/
     if(error != 0){
 
         for(i = 0; i < p_threads->num_threads; i++){
@@ -92,32 +97,30 @@ pool_thread  *pool_th_ini(void *func, int num_threads){
 
 /****
 *FUNCIÓN: Funcion de prueba para los hilos.
-*ARGS_IN: void* args: Se le pasa un puntero a una estructura thread_args
+*ARGS_IN: void* argumentos: Se le pasa un puntero a una estructura thread_args
 *que contiene argumentos de control del hiloargumentos de control del hilo.
 *DESCRIPCION: Funcion que prueba que los hilos y los argumentos
 *pasados a ellos funcionan correctamente.
 *ARGS_OUT: none
 ****/
-void th_main(void *args){
+void th_main(struct _thread_args *argumentos){
 
-    thread_args *argumentos = args;
+    while(!(argumentos->stop)){
+    if(!(argumentos->stop)){
+        pthread_mutex_lock(argumentos->shared_mutex);
+        (argumentos->num_working)++;
+        pthread_mutex_unlock(argumentos->shared_mutex);  
 
-    while(!(*argumentos->stop)){
-    if(!(*argumentos->stop)){
-        pthread_mutex_lock(&argumentos->shared_mutex);
-        (*argumentos->num_working)++;
-        pthread_mutex_unlock(&argumentos->shared_mutex);  
+        /*Llamada a la funcion de trabajo*/
+        argumentos->function();
 
-        printf("Vivan las redes de comunicacion\n");
-        sleep(1);
-
-        pthread_mutex_lock(&argumentos->shared_mutex);
-        (*argumentos->num_working)--;
-        pthread_mutex_unlock(&argumentos->shared_mutex);  
+        pthread_mutex_lock(argumentos->shared_mutex);
+        (argumentos->num_working)--;
+        pthread_mutex_unlock(argumentos->shared_mutex);  
     }
     }
     
-    pthread_exit(EXIT_SUCCESS);
+    pthread_exit(NULL);
 }
 
 /****
@@ -128,11 +131,10 @@ void th_main(void *args){
 ****/
 void pool_th_destroy(pool_thread *p_threads){
     int i;
-
-    pthread_mutex_destroy(&p_threads->shared_mutex); 
-    free(p_threads->num_working);
-    free(p_threads->stop);
+    pthread_mutex_destroy(p_threads->args->shared_mutex);
+    free(p_threads->args->shared_mutex);
     free(p_threads->tid);
+    free(p_threads->args);
     free(p_threads);
 }
 
@@ -143,8 +145,7 @@ void pool_th_destroy(pool_thread *p_threads){
 *ARGS_OUT: none
 ****/
 void pool_th_stop(pool_thread *p_threads){
-
-    *p_threads->stop = 1;
+    p_threads->args->stop = 1;
 }
 
 /****
@@ -158,5 +159,6 @@ void pool_th_wait(pool_thread *p_threads){
 
     for(i = 0; i < p_threads->num_threads; i++){
         pthread_join(p_threads->tid[i], NULL);
+        printf("Joined thread %d\n", i);
     }
 }
