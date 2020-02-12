@@ -12,7 +12,7 @@
 #define MAX_REQUEST_LENGTH 2048
 typedef struct _request_t request_t;
 
-enum error{BadRequest, RequestTooLong}; 
+typedef enum {BadRequest, RequestTooLong}error; 
 
 /****
 *FUNCION: request_t* http_getRequest()

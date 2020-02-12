@@ -1,6 +1,9 @@
 #include "http_request.h"
 #include "libsocket.h"
+#include "libPicohttpparser.h"
+#include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 
 struct _request_t{
     char *method;
@@ -16,9 +19,11 @@ struct _request_t{
 *la variable errorType de la estructura.
 ****/
 request_t* http_getRequest(int socket_fd){
-    int btyes;
-    char *requestString, *method, *path;
-    size_t method_len, path_len;
+    int bytes,err,minor_version;
+    char *requestString;
+    const char *method, *path;
+    size_t method_len, path_len,num_headers,prevbuflen = 0;
+    struct phr_header headers[100];
 
     request_t *request = NULL;
 
@@ -38,7 +43,7 @@ request_t* http_getRequest(int socket_fd){
     }
 
     /*Obtenemos la request*/   
-    bytes = socket_receive(socket_fd, requestString, MAX_REQUEST_LENGHT);
+    bytes = socket_receive(socket_fd, requestString, MAX_REQUEST_LENGTH);
     if(bytes <= 0){
         free(request);
         free(requestString);
@@ -48,28 +53,30 @@ request_t* http_getRequest(int socket_fd){
 
     /*Si se llena el buffer devolevemos el error RequestTooLong*/   
     if(bytes == MAX_REQUEST_LENGTH){
-        request->errorType = error.RequestTooLong;
+        request->errorType = RequestTooLong;
         free(requestString);
         return request;
     }
 
     /*Llamamos al picohttpparser*/   
-    pret = phr_parse_request(requestString, bytes, &method, &method_len, &path, &path_len,
+    err = phr_parse_request(requestString, bytes, &method, &method_len, &path, &path_len,
                              &minor_version, headers, &num_headers, prevbuflen);
 
-    if(pret < 0){
-        request->errorType = error.BadRequest;
+    if(err < 0){
+        request->errorType = BadRequest;
+        free(requestString);
+        return request;
     }
 
     /*Aniadimos el path y el metodo a la struct request*/
-    request->method = malloc(sizeof(char) * ((int)metodh_led +1));
-    request->path = malloc((sizeof(char) * ((int)path_len +1));
+    request->method = malloc(sizeof(char) * ((int)method_len +1));
+    request->path = malloc(sizeof(char) * ((int)path_len +1));
 
     strncpy(request->method, method, (int)method_len);
-    request->method[method_len] = '\0'
+    request->method[method_len] = '\0';
 
     strncpy(request->path, path, (int)path_len);
-    request->path[path_len] = '\0'
+    request->path[path_len] = '\0';
 
     free(requestString);
 

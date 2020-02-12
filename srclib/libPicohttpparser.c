@@ -34,7 +34,7 @@
 #include <x86intrin.h>
 #endif
 #endif
-#include "picohttpparser.h"
+#include "libPicohttpparser.h"
 
 #if __GNUC__ >= 3
 #define likely(x) __builtin_expect(!!(x), 1)
@@ -263,6 +263,20 @@ static const char *parse_http_version(const char *buf, const char *buf_end, int 
 static const char *parse_headers(const char *buf, const char *buf_end, struct phr_header *headers, size_t *num_headers,
                                  size_t max_headers, int *ret)
 {
+    static const char ALIGNED(16) ranges1[] = "\x00 "  /* control chars and up to SP */
+                                                      "\"\""   /* 0x22 */
+                                                      "()"     /* 0x28,0x29 */
+                                                      ",,"     /* 0x2c */
+                                                      "//"     /* 0x2f */
+                                                      ":@"     /* 0x3a-0x40 */
+                                                      "[]"     /* 0x5b-0x5d */
+                                                      "{\377"; /* 0x7b-0xff */
+    const char *value;
+    size_t value_len;
+    int found;
+    const char *value_end;
+    char c;
+
     for (;; ++*num_headers) {
         CHECK_EOF();
         if (*buf == '\015') {
@@ -281,15 +295,6 @@ static const char *parse_headers(const char *buf, const char *buf_end, struct ph
             /* parsing name, but do not discard SP before colon, see
              * http://www.mozilla.org/security/announce/2006/mfsa2006-33.html */
             headers[*num_headers].name = buf;
-            static const char ALIGNED(16) ranges1[] = "\x00 "  /* control chars and up to SP */
-                                                      "\"\""   /* 0x22 */
-                                                      "()"     /* 0x28,0x29 */
-                                                      ",,"     /* 0x2c */
-                                                      "//"     /* 0x2f */
-                                                      ":@"     /* 0x3a-0x40 */
-                                                      "[]"     /* 0x5b-0x5d */
-                                                      "{\377"; /* 0x7b-0xff */
-            int found;
             buf = findchar_fast(buf, buf_end, ranges1, sizeof(ranges1) - 1, &found);
             if (!found) {
                 CHECK_EOF();
@@ -319,15 +324,13 @@ static const char *parse_headers(const char *buf, const char *buf_end, struct ph
             headers[*num_headers].name = NULL;
             headers[*num_headers].name_len = 0;
         }
-        const char *value;
-        size_t value_len;
         if ((buf = get_token_to_eol(buf, buf_end, &value, &value_len, ret)) == NULL) {
             return NULL;
         }
         /* remove trailing SPs and HTABs */
-        const char *value_end = value + value_len;
+        value_end = value + value_len;
         for (; value_end != value; --value_end) {
-            const char c = *(value_end - 1);
+            c = *(value_end - 1);
             if (!(c == ' ' || c == '\t')) {
                 break;
             }
