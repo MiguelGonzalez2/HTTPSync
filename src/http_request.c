@@ -48,7 +48,7 @@ request_t* http_getRequest(int socket_fd){
 
     /*Si se llena el buffer devolevemos el error RequestTooLong*/   
     if(bytes == MAX_REQUEST_LENGTH){
-        request->errorType = RequestTooLong;
+        request->errorType = error.RequestTooLong;
         free(requestString);
         return request;
     }
@@ -56,6 +56,10 @@ request_t* http_getRequest(int socket_fd){
     /*Llamamos al picohttpparser*/   
     pret = phr_parse_request(requestString, bytes, &method, &method_len, &path, &path_len,
                              &minor_version, headers, &num_headers, prevbuflen);
+
+    if(pret < 0){
+        request->errorType = error.BadRequest;
+    }
 
     /*Aniadimos el path y el metodo a la struct request*/
     request->method = malloc(sizeof(char) * ((int)metodh_led +1));
