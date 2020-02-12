@@ -80,7 +80,7 @@ pool_thread *pool_th_ini(task_function func, int num_threads, int server_fd){
             }
 
             for(i = 0; i < num_threads; i++){
-                if(pthread_create(&p_threads->tid[i], NULL, (void * (*)(void *))&th_main, p_threads->args) !=0){
+                if(pthread_create(&p_threads->tid[i], NULL, (void * (*)(void *))&th_main, p_threads->args) != 0){
                     syslog(LOG_ERR, "No se pudo iniciar uno de los threads");
                     error = 1;
                     break;

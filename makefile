@@ -32,7 +32,7 @@ $(LIB)libPoolThreads.a: $(BINLIB)libPoolThreads.o $(LIB)
 	ar rcs $(LIB)libPoolThreads.a $<
 
 #Ejecutable
-$(EXE): $(LIB)libsocket.a $(LIB)libPoolThreads.a $(BIN)daemon.o $(BIN)server.o
+$(EXE): $(LIB)libsocket.a $(LIB)libPoolThreads.a $(BIN)daemon.o $(BIN)server.o $(BIN)http_request.o
 	$(CC) $(flags) -o $(EXE) $(BIN)server.o $(BIN)daemon.o -lsocket -lPoolThreads -lpthread
 
 #Regla para compilar objetos de libreria.

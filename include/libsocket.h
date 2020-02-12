@@ -61,7 +61,7 @@ int socket_send(int socket_fd, char *data, int size);
 *          char* data - comienzo del espacio de memoria donde se copiaran los datos.
 *          int size: Numero de bytes a recibir.
 * DESCRIPCIÓN: Recibe datos a traves de un socket/conexion. La recepcion es bloqueante hasta obtener los datos.
-* ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito.
+* ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito y -1 en caso de error.
 ****/
 int socket_receive(int socket_fd, char *data, int size);
 #endif
