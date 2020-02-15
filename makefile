@@ -45,4 +45,4 @@ $(BIN)%.o:: $(SRC)%.c $(BIN)
 	
 #Clean
 clean:
-	rm -rf $(BIN) $(BINLIB) $(LIB)* 
+	rm -rf $(BIN) $(BINLIB) $(LIB)* $(EXE)
