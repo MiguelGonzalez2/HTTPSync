@@ -83,7 +83,10 @@ struct _request_t{
     /*Reemplazamos el path '/' */
     strCompareRes = strcmp(request->path, "/");
     if(!strCompareRes){
-        realloc(request->path,length(DEFAULT_URI) + 1);
+        if(realloc(request->path,strlen(DEFAULT_URI) + 1) == NULL){
+            http_req_destroy(request);
+            return NULL;
+        }
         strcpy(request->path,DEFAULT_URI);
     }
 
