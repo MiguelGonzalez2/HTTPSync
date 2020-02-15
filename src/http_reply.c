@@ -68,7 +68,6 @@ int http_reply_send(int conn_fd, request_t *req){
     }
 
     /*Anadimos Fecha*/
-
     buffer = http_reply_getdate();
     if(buffer != NULL){
 	    strcat(header, "Date: ");

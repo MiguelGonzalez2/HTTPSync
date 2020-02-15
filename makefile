@@ -49,4 +49,4 @@ $(BIN)%.o:: $(SRC)%.c $(LIB)libPicohttpparser.a $(BIN)
 	
 #Clean
 clean:
-	rm -rf $(BIN) $(BINLIB) $(LIB)* 
+	rm -rf $(BIN) $(BINLIB) $(LIB)* $(EXE)

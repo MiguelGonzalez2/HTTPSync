@@ -116,6 +116,10 @@ void th_main(struct _thread_args *argumentos){
 
     int status;
 
+    if(argumentos == NULL){
+        return;
+    }
+
     while(!(argumentos->stop)){
     	if(!(argumentos->stop)){
         	pthread_mutex_lock(argumentos->shared_mutex);
@@ -144,10 +148,23 @@ void th_main(struct _thread_args *argumentos){
 *ARGS_OUT: none
 ****/
 void pool_th_destroy(pool_thread *p_threads){
-    pthread_mutex_destroy(p_threads->args->shared_mutex);
-    free(p_threads->args->shared_mutex);
-    free(p_threads->tid);
-    free(p_threads->args);
+    
+    if(p_threads == NULL){
+        return;
+    }
+    
+    if(p_threads->args != NULL){
+        if(p_threads->args->shared_mutex != NULL){
+            free(p_threads->args->shared_mutex);
+        }
+
+        free(p_threads->args);
+    }
+    
+    if(p_threads->tid != NULL){
+        free(p_threads->tid);
+    }
+
     free(p_threads);
 }
 
@@ -159,6 +176,11 @@ void pool_th_destroy(pool_thread *p_threads){
 ****/
 void pool_th_stop(pool_thread *p_threads){
     int i;
+
+    if(p_threads == NULL){
+        return;
+    }
+
     p_threads->args->stop = 1;
 
     /*Sacar a los threads de bloqueos*/
@@ -175,6 +197,10 @@ void pool_th_stop(pool_thread *p_threads){
 ****/
 void pool_th_wait(pool_thread *p_threads){
     int i;
+
+    if(p_threads == NULL){
+        return;
+    }
 
     for(i = 0; i < p_threads->num_threads; i++){
         pthread_join(p_threads->tid[i], NULL);

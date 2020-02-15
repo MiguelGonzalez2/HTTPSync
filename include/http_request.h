@@ -24,13 +24,40 @@ typedef enum {OK, BadRequest, RequestTooLong} http_req_error;
 ****/
 request_t* http_get_request(int socket_fd);
 
-/*TODO SI EL PATH ES '/', EN LUGAR DE ESO; REEMPLAZARLO POR LA MACRO DEFAULT_URI*/
-/*TODO IMPLEMENTAR ESTAS FUNCIONES Y COMENTARLAS.*/
+/****
+*FUNCION: char *http_get_method(request *req)
+*ARGS_IN: request *req: Estructura request de la que se pide el metodo
+*DESCRIPCION: Devuelve el metodo de una request
+*ARGS_OUT: char* req->method: String con el metodo
+****/
 char *http_get_method(request_t *req);
-char *http_get_path(request_t *req);
-http_req_error http_get_error(request_t *req);
-int http_req_destroy(request_t *req);
 
+/****
+*FUNCION: char *http_get_path(request_t *req)
+*ARGS_IN: request_t *req: Estructura request de la que se pide el path
+*a un fichero.
+*DESCRIPCION: Devuelve el path al fichero solicitado por la request.
+*ARGS_OUT: cha* req->method: String con el path.
+****/
+char *http_get_path(request_t *req);
+
+/****
+*FUNCION: http_req_error http_get_error(request_t *req);
+*ARGS_IN: request_t *req: Estructura request de la que se pide
+*el errorType
+*DESCRIPCION: Devuelve el tipo de error de una request,
+*OK en caso de no haber error.
+*ARGS_OUT: http_req_error req->errorType: El error a devolver.
+****/
+http_req_error http_get_error(request_t *req);
+
+/****
+*FUNCION: void http_req_destroy(request_t *req)
+*ARGS_IN: request_t *req: Estructura request a liberar.
+*DESCRIPCION:
+*ARGS_OUT: none
+****/
+void http_req_destroy(request_t *req);
 
 #endif
 
