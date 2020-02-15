@@ -12,11 +12,11 @@
 #include "http_request.h"
 
 /****
-* FUNCIÓN: int http_reply_send(int conn_fd, request_t req)
+* FUNCIÓN: int http_reply_send(int conn_fd, request_t *req)
 * ARGS_IN: int conn_fd: Descriptor del socket al que enviar la reply.
 *          request_t req: Peticion a la que responder.
 * DESCRIPCIÓN: Recibe una peticion y responde segun lo solicitado.
 * ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito.
 ****/
-int http_reply_send(int conn_fd, request_t req);
+int http_reply_send(int conn_fd, request_t *req);
 #endif

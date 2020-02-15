@@ -9,28 +9,119 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include "libsocket.h"
+#include "http_reply.h"
+
+char *http_reply_gettype(char *path);
+int http_send_file(int socket_fd, char *path);
+int http_file_size(char *path);
+int http_file_exists(char *path);
+char *http_reply_get_last_modified(char *path);
+char *http_reply_getdate();
 
 /****
-* FUNCIÓN: int http_reply_send(int conn_fd, request_t req)
+* FUNCIÓN: int http_reply_send(int conn_fd, request_t *req)
 * ARGS_IN: int conn_fd: Descriptor del socket al que enviar la reply.
-*          request_t req: Peticion a la que responder.
+*          request_t *req: Peticion a la que responder.
 * DESCRIPCIÓN: Recibe una peticion y responde segun lo solicitado.
 * ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito.
 ****/
-int http_reply_send(int conn_fd, request_t req){
+int http_reply_send(int conn_fd, request_t *req){
     
+    /*Cabecera del mensaje HTTP*/
+    char header[2048]; 
+    char *path;
+    char *method;
+    char *buffer;
+    http_req_error err;
+    /*Determina si se trata de OPTIONS * que no trata sobre un fichero*/
+    int options, size;
+
+    memset(header, 0, 2048);
+   
+    /*Anadimos la version HTTP*/
+    strcat(header, "HTTP/1.1 ");
     /*Comprobar status de la request*/
+    err = http_get_error(req);
+    method = http_get_method(req);
+    path = http_get_path(req);
 
-    /*Abre el fichero, si no esta NOT FOUND, si no OK*/
+    options = (!strcmp(method, "OPTIONS") && !strcmp(path, "*")) ? 1 : 0;
 
-    /*Leer fecha de modificacion y tamano*/
+    /*Codigos de estados*/
+    
+    /*Request correcta*/
+    if(err == OK){
+        if(options || http_file_exists(path)){
+            strcat(header, "200 OK\r\n");
+        } else {
+            strcat(header, "404 Not Found\r\n");
+        }    
+    } else if(err == BadRequest){
+        strcat(header, "400 Bad Request\r\n");
+    } else {
+        strcat(header, "500 Internal Server Error\r\n");
+    }
 
-    /*Construir y mandar la cabecera*/
+    /*Anadimos Fecha*/
+
+    buffer = http_reply_getdate();
+    if(buffer != NULL){
+	    strcat(header, "Date: ");
+	    strcat(header, buffer);
+	    free(buffer);
+    }
+
+    /*Aniadimos datos del server*/
+    strcat(header, "Server: HTTPServer by A.B and M.G\r\n");
+
+    if(!options){
+        /*Fecha de modificacion*/
+        buffer = http_reply_get_last_modified(path);
+        if(buffer != NULL){
+		strcat(header, "Last-Modified: ");
+		strcat(header, buffer);
+		free(buffer);
+        }
+        /*Tipo de contenido*/
+        buffer = http_reply_gettype(path);
+        if(buffer != NULL){
+                strcat(header, "Content-Type: ");
+                strcat(header, buffer);
+                free(buffer);
+        }
+        /*Tamano del contenido*/
+        size = http_file_size(path);
+        strcat(header, "Content-Length: ");
+        buffer = malloc(64*sizeof(char));
+        if(buffer != NULL){
+            sprintf(buffer, "%d\r\n", size);
+            strcat(header, buffer);
+            free(buffer);
+        }
+
+    } 
+
+    if(!strcmp(method, "OPTIONS")){
+        strcat(header, "Allow: GET,POST,OPTIONS\r\n");
+    }
+   
+    /*Fin de la cabecera*/
+    strcat(header, "\r\n");
+
+    /*Mandamos la cabecera*/
+    size = socket_send(conn_fd, header, strlen(header));
 
     /*Mandar el fichero*/
+    if(!options){
+        size += http_send_file(conn_fd, path);
+    }
 
-    /*Liberar*/
+    return size;
 }
 
 /****
@@ -57,8 +148,8 @@ char *http_reply_gettype(char *path){
     }
 
     /*Detecta donde comienza la extension*/
-    for(i = strlen(path)-1; (i >= 0) && (extension == -1), i--){
-        if(path[i] = '.'){
+    for(i = strlen(path)-1; (i >= 0) && (extension == -1); i--){
+        if(path[i] == '.'){
             extension = i;
         }
     }
@@ -68,19 +159,19 @@ char *http_reply_gettype(char *path){
     }
 
     /*Decidimos el tipo*/
-    if(!strcmp(path[i+1],"txt")){
+    if(!strcmp(&path[i+1],"txt")){
         strcpy(content_type, "text/plain");
-    } else if(!strcmp(path[i+1],"html") || !strcmp(path[i+1],"htm")){
+    } else if(!strcmp(&path[i+1],"html") || !strcmp(&path[i+1],"htm")){
         strcpy(content_type, "text/html");
-    } else if (!strcmp(path[i+1],"gif")){
+    } else if (!strcmp(&path[i+1],"gif")){
         strcpy(content_type, "image/gif");
-    } else if(!strcmp(path[i+1],"jpeg") || !strcmp(path[i+1],"jpg")){
+    } else if(!strcmp(&path[i+1],"jpeg") || !strcmp(&path[i+1],"jpg")){
         strcpy(content_type, "image/jpeg");
-    } else if(!strcmp(path[i+1],"mpeg") || !strcmp(path[i+1],"mpg")){
+    } else if(!strcmp(&path[i+1],"mpeg") || !strcmp(&path[i+1],"mpg")){
         strcpy(content_type, "video/mpeg");
-    } else if(!strcmp(path[i+1],"doc") || !strcmp(path[i+1],"docx")){
+    } else if(!strcmp(&path[i+1],"doc") || !strcmp(&path[i+1],"docx")){
         strcpy(content_type, "application/msword");
-    } else if (!strcmp(path[i+1],"pdf")){
+    } else if (!strcmp(&path[i+1],"pdf")){
         strcpy(content_type, "application/pdf");
     } else {
         return NULL;
@@ -103,15 +194,107 @@ char *http_reply_gettype(char *path){
 * devuelve NULL en caso de error. La memoria reservada debera liberarse.
 ****/
 char *http_reply_getdate(){
-    char buf[256];
-    time_t now = time(0);
-    struct tm *tm = gmtime(&now);
+    char *buf;
+    time_t now;
+    struct tm *tm;
 
-    if(tm == NULL){
+    now = time(0);
+    tm = gmtime(&now);
+    buf = malloc(256*sizeof(char));
+
+    if(tm == NULL || buf == NULL){
         return NULL;
     }
 
     /*Damos el formato adecuado*/
-    strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S %Z", tm);
+    strftime(buf, 256*sizeof(char), "%a, %d %b %Y %H:%M:%S %Z\r\n", tm);
     return buf;
+}
+
+/****
+* FUNCIÓN: char *http_reply_get_last_modified(char *path)
+* DESCRIPCIÓN: Devuelve un char con el campo date que se debe copiar.
+* Viene ya con el \r\n.
+* ARGS_IN: char *fichero del que obtener la fecha.
+* ARGS_OUT: char *Direccion de memoria que apunta a la cadena correspondiente.
+* devuelve NULL en caso de error. La memoria reservada debera liberarse.
+****/
+char *http_reply_get_last_modified(char *path){
+    char *buf;
+    struct tm *tm;
+    struct stat attrib;
+
+    if(path == NULL){
+        return NULL;
+    }
+
+    stat(path, &attrib);
+  
+    buf = malloc(256*sizeof(char));
+    tm = gmtime(&(attrib.st_mtime));
+
+    if(tm == NULL || buf == NULL){
+        return NULL;
+    }
+
+    /*Damos el formato adecuado*/
+    strftime(buf, 256*sizeof(char), "%a, %d %b %Y %H:%M:%S %Z\r\n", tm);
+    return buf;
+}
+
+/****
+* FUNCIÓN: http_file_exists( char * path)
+* DESCRIPCIÓN: Indica si existe un recurso.
+* ARGS_IN: char *path: Ruta del recurso.
+* ARGS_OUT: 0 si el recurso no existe, 1 si existe.
+****/
+int http_file_exists(char *path){
+
+    if(path == NULL){
+        return 0;
+    }
+
+    return (access(path,F_OK) == 0);
+}
+
+/****
+* FUNCIÓN: http_file_size(char *path)
+* DESCRIPCIÓN: Da el tamano en bytes de un fichero.
+* ARGS_IN: char *path: Ruta del recurso.
+* ARGS_OUT: Tamano en bytes del fichero, 0 si falla.
+****/
+int http_file_size(char *path){
+
+    struct stat attrib;
+
+    if(path == NULL){
+        return 0;
+    }
+
+    stat(path, &attrib);
+    return attrib.st_size;
+}
+
+/****
+* FUNCIÓN: http_send_file(int socket_fd, char *path)
+* DESCRIPCIÓN: Envia un fichero por el socket.
+* ARGS_IN: char *path: Ruta del recurso.
+*          int socket_fd : Descriptor del socket.
+* ARGS_OUT: Numero de bytes enviados.
+****/
+int http_send_file(int socket_fd, char *path){
+        
+    FILE *f;
+    int read_size, total;
+    char buffer[8192];
+
+    total = 0;
+    f = fopen(path, "r");
+    if(f != NULL){	
+        while((read_size = fread(buffer, sizeof(char), 8192, f)) > 0){
+            total += socket_send(socket_fd, buffer, read_size);
+        }
+    }
+    fclose(f);
+    return total;
 }

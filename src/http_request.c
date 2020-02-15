@@ -8,17 +8,17 @@
 struct _request_t{
     char *method;
     char *path;
-    error errorType;
+    http_req_error errorType;
 };
 
 /****
-*FUNCION: request_t* http_getRequest()
+*FUNCION: request_t* http_get_request()
 *ARGS_IN: int socket_fd: Descriptor del socket/conexion del que parsear la request
 *DESCRIPCION: Crea una estructura request.
 *ARGS_OUT: Devuelve un puntero a una estructura request_t. Si hay un error se indica en
 *la variable errorType de la estructura.
 ****/
-request_t* http_getRequest(int socket_fd){
+request_t* http_get_request(int socket_fd){
     int bytes,err,minor_version;
     char *requestString;
     const char *method, *path;
@@ -77,6 +77,8 @@ request_t* http_getRequest(int socket_fd){
 
     strncpy(request->path, path, (int)path_len);
     request->path[path_len] = '\0';
+ 
+    request->error = OK;
 
     free(requestString);
 
