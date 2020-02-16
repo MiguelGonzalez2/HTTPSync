@@ -9,6 +9,7 @@ struct _request_t{
     char *method;
     char *path;
     http_req_error errorType;
+    connectionStatus connection;
 };
 
 /****
@@ -18,7 +19,7 @@ struct _request_t{
 *ARGS_OUT: Devuelve un puntero a una estructura request_t. Si hay un error se indica en
 *la variable errorType de la estructura.
 ****/ request_t* http_get_request(int socket_fd){
-    int bytes,err,minor_version,strCompareRes;
+    int i, bytes,err,minor_version,strCompareRes,connFound = 0;
     char *requestString;
     const char *method, *path;
     size_t method_len, path_len,num_headers,prevbuflen = 0;
@@ -29,19 +30,20 @@ struct _request_t{
     /*Reservamos memoria para la struct request*/   
     request = malloc(sizeof(request_t));
     if(request == NULL){
-        syslog(LOG_ERR,"Error al reservar memoria para la struct request_t");
+        syslog(LOG_ERR,"Error al reservar memoria para la struct request_t.");
         return NULL;
     }
 
     request->method = NULL;
     request->path = NULL;
     request->errorType = BadRequest;
+    request->connection = Close;
 
     /*Reservamos memoria para el buffer que contiene la request*/   
     requestString = malloc(sizeof(char) * MAX_REQUEST_LENGTH);
     if(requestString == NULL){
         free(request);
-        syslog(LOG_ERR,"Error al reservar memoria para una cadena de caracteres");
+        syslog(LOG_ERR,"Error al reservar memoria para una cadena de caracteres.");
         return NULL;
     }
 
@@ -50,13 +52,27 @@ struct _request_t{
     if(bytes <= 0){
         free(request);
         free(requestString);
-        syslog(LOG_ERR,"Error al leer del socket");
+        syslog(LOG_ERR,"Error al leer del socket.");
         return NULL;
     }
 
     /*Si se llena el buffer devolevemos el error RequestTooLong*/   
     if(bytes == MAX_REQUEST_LENGTH){
         request->errorType = RequestTooLong;
+        syslog(LOG_ERR,"Tamanio de la request demasiado grande.");
+
+        /*Limpiamos el buffer*/
+        do{
+            bytes = socket_receive(socket_fd, requestString, MAX_REQUEST_LENGTH);
+            if(bytes < 0){
+                free(request);
+                free(requestString);
+                syslog(LOG_ERR,"Error al leer del socket");
+                return NULL;
+            }
+            
+        }while(bytes != MAX_REQUEST_LENGTH);
+
         free(requestString);
         return request;
     }
@@ -87,10 +103,27 @@ struct _request_t{
             http_req_destroy(request);
             return NULL;
         }
+
         strcpy(request->path,DEFAULT_URI);
     }
 
+    /*Valores asignados cuando no hay errores*/
     request->errorType = OK;
+    request->connection = Open;
+
+    /*Buscamos Connection: Close en los headers*/
+    for(i = 0; i < num_headers && !connFound; i++){
+        strCompareRes = strncmp(headers[i].name, "Connection", headers[i].name_len);
+        if(!strCompareRes){
+            strCompareRes = strncmp(headers[i].value, "close", headers[i].value_len);
+            if(!strCompareRes){
+                request->connection = Close;
+            }
+
+            /*Si hemos encontrado el header con nombre Connection salimos*/
+            connFound = 1;
+        }
+    }
 
     free(requestString);
 

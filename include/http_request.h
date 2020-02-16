@@ -14,6 +14,7 @@
 typedef struct _request_t request_t;
 
 typedef enum {OK, BadRequest, RequestTooLong} http_req_error; 
+typedef enum {Open, Close} connectionStatus;
 
 /****
 *FUNCION: request_t* http_getRequest()
