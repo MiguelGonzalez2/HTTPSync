@@ -16,6 +16,8 @@
 #include "daemon.h"
 #include "libPoolThreads.h"
 #include "libsocket.h"
+#include "http_request.h"
+#include "http_reply.h"
  
 #define HTTP_SERVER_PORT 8080 /*!<Puerto para el server*/
 #define LISTEN_QUEUE 5 /*!<Cola de espera para conexiones no aceptadas*/
@@ -33,10 +35,8 @@ void end_handler(int sig){
 ****/
 int thread_work(int server_fd){
 
-   int conn_fd, port, addr;
-   /*DECLARACIONES DEL CODIGO TEMPORAL*/
-   char buffer[8192] = "HTTP/1.1 200 OK\r\nContent-Length: 44\r\nConnection: close\r\nContent-Type: text/html\r\n\r\n<html><body><h1>It works!</h1></body></html>\r\n";
-   /*FIN DECLARACIONES DEL CODIGO TEMPORAL*/
+   int conn_fd, port, addr, status;
+   request_t *req;
 
    syslog(LOG_INFO, "ServerHTTP: Hilo esperando conexiones.\n");
    conn_fd = socket_accept(server_fd, &port, &addr);
@@ -45,16 +45,19 @@ int thread_work(int server_fd){
       return (errno == EINTR);
    }
 
-   syslog(LOG_INFO, "ServerHTTP: Conexion establecida en puerto %d e IP %d\n", port, addr);
+  syslog(LOG_INFO, "ServerHTTP: Conexion establecida en puerto %d e IP %d\n", port, addr);
 
-   /*TODO: CAMBIAR ESTA PIEZA DE CODIGO POR UNA LLAMADA A LIBRERIA HTTP*/
-   /*PARA PROBAR; SE MANDARA UN FICHERO PREDEFINIDO*/
-   if(socket_send(conn_fd, buffer, strlen(buffer)) == -1){
-	socket_close(conn_fd);
-	return -1;
-				}
-  /*FIN DEL CODIGO TEMPORAL*/
-
+  req = http_get_request(conn_fd);
+  if(req != NULL){
+      syslog(LOG_INFO,"ServerHTTP: Request caught. Method %s. Path %s. Errorcode %d\n", http_get_method(req),http_get_path(req),http_get_error(req));
+      syslog(LOG_INFO,"ServerHTTP: Sending reply\n");
+      status = http_reply_send(conn_fd, req, 1);
+      syslog(LOG_INFO,"ServerHTTP: %d Bytes of Reply Sent\n", status);
+      http_req_destroy(req);
+  } else {
+      syslog(LOG_ERR,"ServerHTTP: Error getting request\n");
+  }
+ 
   socket_close(conn_fd);  
   syslog(LOG_INFO, "ServerHTTP: Cerrando la conexion en puerto %d e IP %d\n", port, addr);
   return 0; 

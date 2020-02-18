@@ -36,8 +36,8 @@ $(LIB)libPicohttpparser.a: $(BINLIB)libPicohttpparser.o $(LIB)
 	ar rcs $(LIB)libPicohttpparser.a $<
 
 #Ejecutable
-$(EXE): $(LIB)libsocket.a $(LIB)libPoolThreads.a $(LIB)libPicohttpparser.a $(BIN)daemon.o $(BIN)server.o $(BIN)http_request.o
-	$(CC) $(flags) -o $(EXE) $(BIN)server.o $(BIN)daemon.o -lsocket -lPoolThreads -lpthread -lPicohttpparser
+$(EXE): $(LIB)libsocket.a $(LIB)libPoolThreads.a $(LIB)libPicohttpparser.a $(BIN)daemon.o $(BIN)server.o $(BIN)http_request.o $(BIN)http_reply.o
+	$(CC) $(flags) -o $(EXE) $(BIN)server.o $(BIN)daemon.o $(BIN)http_request.o $(BIN)http_reply.o -lsocket -lPoolThreads -lpthread -lPicohttpparser
 
 #Regla para compilar objetos de libreria.
 $(BINLIB)%.o:: $(SRCLIB)%.c $(INC)%.h $(BINLIB)
@@ -49,4 +49,4 @@ $(BIN)%.o:: $(SRC)%.c $(LIB)libPicohttpparser.a $(BIN)
 	
 #Clean
 clean:
-	rm -rf $(BIN) $(BINLIB) $(LIB)* $(EXE)
+	rm -rf $(BIN) $(BINLIB) $(LIB)*

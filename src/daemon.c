@@ -24,7 +24,7 @@ y EXIT_FAILURE en caso de que algo falle.
 ***/
 int daemonProcess(){
 	pid_t hijoPID;
-	int controlError;
+	/*int controlError;*/
 	int fd;
 	
 	/*Fork haciendo que el padre termine*/
@@ -52,11 +52,11 @@ int daemonProcess(){
 		exit(EXIT_SUCCESS);
 	}
 
-	/*Cambiamos al directorio raiz*/
+	/*Cambiamos al directorio raiz
 	controlError = chdir("/");
 	if(controlError != 0){
 		exit(EXIT_FAILURE);
-	}
+	}*/
 
 	/*Ponemos la máscara a cero*/
 	umask(0);

@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 
 struct _request_t{
     char *method;
@@ -18,7 +19,8 @@ struct _request_t{
 *DESCRIPCION: Crea una estructura request.
 *ARGS_OUT: Devuelve un puntero a una estructura request_t. Si hay un error se indica en
 *la variable errorType de la estructura.
-****/ request_t* http_get_request(int socket_fd){
+****/
+request_t* http_get_request(int socket_fd){
     int i, bytes,err,minor_version,strCompareRes,connFound = 0;
     char *requestString;
     const char *method, *path;
@@ -67,7 +69,7 @@ struct _request_t{
             if(bytes < 0){
                 free(request);
                 free(requestString);
-                syslog(LOG_ERR,"Error al leer del socket");
+                syslog(LOG_ERR,"Error limpiando el socket");
                 return NULL;
             }
             
@@ -77,12 +79,14 @@ struct _request_t{
         return request;
     }
 
-    /*Llamamos al picohttpparser*/   
+    /*Llamamos al picohttpparser*/
+    num_headers = sizeof(headers) / sizeof(headers[0]);   
     err = phr_parse_request(requestString, bytes, &method, &method_len, &path, &path_len,
                              &minor_version, headers, &num_headers, prevbuflen);
 
-    if(err < 0){
+    if(err ==-1){
         free(requestString);
+        syslog(LOG_ERR, "Error de PicoHTTPParser with code %d", err);
         return request;
     }
 

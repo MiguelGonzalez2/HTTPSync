@@ -26,11 +26,13 @@ char *http_reply_getdate();
 /****
 * FUNCIÓN: int http_reply_send(int conn_fd, request_t *req)
 * ARGS_IN: int conn_fd: Descriptor del socket al que enviar la reply.
-*          request_t *req: Peticion a la que responder.
+*          request_t req: Peticion a la que responder.
+*          int connection_close: Debe ponerse a un valor distinto de 0
+*          si se va a cerrar el socket tras enviar esta respuesta.
 * DESCRIPCIÓN: Recibe una peticion y responde segun lo solicitado.
 * ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito.
 ****/
-int http_reply_send(int conn_fd, request_t *req){
+int http_reply_send(int conn_fd, request_t *req, int connection_close){
     
     /*Cabecera del mensaje HTTP*/
     char header[2048]; 
@@ -50,16 +52,23 @@ int http_reply_send(int conn_fd, request_t *req){
     method = http_get_method(req);
     path = http_get_path(req);
 
-    options = (!strcmp(method, "OPTIONS") && !strcmp(path, "*")) ? 1 : 0;
+    /*Preparamos el path relativo quitando la barra*/
+    if(path != NULL && path[0] == '/'){
+            path ++;
+    }
+
+    if(err == OK){
+        options = (!strcmp(method, "OPTIONS") && !strcmp(path, "*")) ? 1 : 0;
+    }
 
     /*Codigos de estados*/
-    
-    /*Request correcta*/
     if(err == OK){
         if(options || http_file_exists(path)){
             strcat(header, "200 OK\r\n");
         } else {
             strcat(header, "404 Not Found\r\n");
+            /*Quitamos OK del err*/
+            err = BadRequest;
         }    
     } else if(err == BadRequest){
         strcat(header, "400 Bad Request\r\n");
@@ -78,7 +87,7 @@ int http_reply_send(int conn_fd, request_t *req){
     /*Aniadimos datos del server*/
     strcat(header, "Server: HTTPServer by A.B and M.G\r\n");
 
-    if(!options){
+    if(!options && err==OK){
         /*Fecha de modificacion*/
         buffer = http_reply_get_last_modified(path);
         if(buffer != NULL){
@@ -94,18 +103,24 @@ int http_reply_send(int conn_fd, request_t *req){
                 free(buffer);
         }
         /*Tamano del contenido*/
-        size = http_file_size(path);
-        strcat(header, "Content-Length: ");
-        buffer = malloc(64*sizeof(char));
-        if(buffer != NULL){
-            sprintf(buffer, "%d\r\n", size);
-            strcat(header, buffer);
-            free(buffer);
+        if(strcmp(method,"OPTIONS")){
+		size = http_file_size(path);
+		strcat(header, "Content-Length: ");
+		buffer = malloc(64*sizeof(char));
+		if(buffer != NULL){
+		    sprintf(buffer, "%d\r\n", size);
+		    strcat(header, buffer);
+		    free(buffer);
+		}
+        }
+       
+        if(connection_close){
+            strcat(header, "Connection: close\r\n");
         }
 
     } 
 
-    if(!strcmp(method, "OPTIONS")){
+    if(err == OK &&!strcmp(method, "OPTIONS")){
         strcat(header, "Allow: GET,POST,OPTIONS\r\n");
     }
    
@@ -116,7 +131,7 @@ int http_reply_send(int conn_fd, request_t *req){
     size = socket_send(conn_fd, header, strlen(header));
 
     /*Mandar el fichero*/
-    if(!options){
+    if(err==OK && !options && strcmp(method, "OPTIONS")){
         size += http_send_file(conn_fd, path);
     }
 
@@ -153,12 +168,16 @@ char *http_reply_gettype(char *path){
         }
     }
 
+    /*Caso en el que no hay extensiones*/
     if(extension == 0 && path[0] != '.'){
         return NULL;
     }
+ 
+    /*Apuntamos al inicio de la extension*/
+    i = extension;
 
     /*Decidimos el tipo*/
-    if(!strcmp(&path[i+1],"txt")){
+    if(!strcmp(&path[+1],"txt")){
         strcpy(content_type, "text/plain");
     } else if(!strcmp(&path[i+1],"html") || !strcmp(&path[i+1],"htm")){
         strcpy(content_type, "text/html");
@@ -288,6 +307,7 @@ int http_send_file(int socket_fd, char *path){
     char buffer[8192];
 
     total = 0;
+    /*Ponemos un punto para que sea relativo*/
     f = fopen(path, "r");
     if(f != NULL){	
         while((read_size = fread(buffer, sizeof(char), 8192, f)) > 0){
