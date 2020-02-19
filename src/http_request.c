@@ -5,6 +5,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <errno.h>
 
 struct _request_t{
     char *method;
@@ -54,7 +55,9 @@ request_t* http_get_request(int socket_fd){
     if(bytes <= 0){
         free(request);
         free(requestString);
-        syslog(LOG_ERR,"Error al leer del socket.");
+        if(errno != EINTR){
+        	syslog(LOG_ERR,"Error al leer del socket. %d bytes",bytes);
+        }
         return NULL;
     }
 
@@ -73,7 +76,7 @@ request_t* http_get_request(int socket_fd){
                 return NULL;
             }
             
-        }while(bytes != MAX_REQUEST_LENGTH);
+        }while(bytes != 0);
 
         free(requestString);
         return request;

@@ -231,6 +231,6 @@ int socket_receive_nonblock(int socket_fd, char *data, int size){
 		nread += ret;
 	}
 	
-        fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK);
+        fcntl(socket_fd, F_SETFL, flags & ~O_NONBLOCK);
 	return nread;
 }

@@ -61,7 +61,10 @@ int thread_work(int server_fd){
 	      syslog(LOG_INFO,"ServerHTTP: %d Bytes of Reply Sent\n", status);
 	      http_req_destroy(req);
 	  } else {
-	      syslog(LOG_ERR,"ServerHTTP: Error getting request\n");
+              if(!end){
+		      syslog(LOG_ERR,"ServerHTTP: Error getting request\n");
+		      cstatus = Close;
+              }
 	  }
   }
  
@@ -99,10 +102,10 @@ int main(int argc, char **argv){
    pool_thread *pool;
 
    /*DAEMON*/ 
-   /*if(daemonProcess() != EXIT_SUCCESS){
+   if(daemonProcess() != EXIT_SUCCESS){
        syslog(LOG_ERR, "ServerHTTP: Error creando daemon.\n");
        return EXIT_FAILURE;
-   }*/
+   }
    
    /*Ignoramos SIGINT, es la que cerrara de manera limpia el server*/
    if(end_handler_signal(SIGINT) != 0){

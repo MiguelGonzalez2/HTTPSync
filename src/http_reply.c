@@ -114,6 +114,8 @@ int http_reply_send(int conn_fd, request_t *req, int connection_close){
 		}
         }
        
+    } else {
+         strcat(header, "Content-Length: 0\r\n");
     } 
 
     if(connection_close){
@@ -308,7 +310,6 @@ int http_send_file(int socket_fd, char *path){
     char buffer[8192];
 
     total = 0;
-    /*Ponemos un punto para que sea relativo*/
     f = fopen(path, "r");
     if(f != NULL){	
         while((read_size = fread(buffer, sizeof(char), 8192, f)) > 0){
