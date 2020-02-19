@@ -62,10 +62,10 @@ request_t* http_get_request(int socket_fd){
     if(bytes == MAX_REQUEST_LENGTH){
         request->errorType = RequestTooLong;
         syslog(LOG_ERR,"Tamanio de la request demasiado grande.");
-
+        
         /*Limpiamos el buffer*/
         do{
-            bytes = socket_receive(socket_fd, requestString, MAX_REQUEST_LENGTH);
+            bytes = socket_receive_nonblock(socket_fd, requestString, MAX_REQUEST_LENGTH);
             if(bytes < 0){
                 free(request);
                 free(requestString);
@@ -181,6 +181,24 @@ http_req_error http_get_error(request_t *req){
 
     return req->errorType;
 }
+
+/****
+*FUNCION: http_req_connection_status http_get_error(request_t *req)
+*ARGS_IN: request_t *req: Estructura request de la que se pide
+*el errorType
+*DESCRIPCION: Devuelve el tipo de error de una request,
+*OK en caso de no haber error.
+*ARGS_OUT: connectionStatus: Estado de la conexion.
+****/
+connectionStatus http_get_connection_status(request_t *req){
+   
+    if(req == NULL){
+	return Close;
+    }
+
+    return req->connection;
+}
+
 
 /****
 *FUNCION: void http_req_destroy(request_t *req)

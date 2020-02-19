@@ -23,8 +23,11 @@
 #define LISTEN_QUEUE 5 /*!<Cola de espera para conexiones no aceptadas*/
 #define THREAD_NO 20 /*!<Numero de hilos*/
 
+int end = 0; /*Indica el fin del programa*/
+
 /*Manejador para señal*/
-void end_handler(int sig){  
+void end_handler(int sig){
+    end = 1;  
 }
 
 /****
@@ -37,6 +40,7 @@ int thread_work(int server_fd){
 
    int conn_fd, port, addr, status;
    request_t *req;
+   connectionStatus cstatus = Open;
 
    syslog(LOG_INFO, "ServerHTTP: Hilo esperando conexiones.\n");
    conn_fd = socket_accept(server_fd, &port, &addr);
@@ -47,15 +51,18 @@ int thread_work(int server_fd){
 
   syslog(LOG_INFO, "ServerHTTP: Conexion establecida en puerto %d e IP %d\n", port, addr);
 
-  req = http_get_request(conn_fd);
-  if(req != NULL){
-      syslog(LOG_INFO,"ServerHTTP: Request caught. Method %s. Path %s. Errorcode %d\n", http_get_method(req),http_get_path(req),http_get_error(req));
-      syslog(LOG_INFO,"ServerHTTP: Sending reply\n");
-      status = http_reply_send(conn_fd, req, 1);
-      syslog(LOG_INFO,"ServerHTTP: %d Bytes of Reply Sent\n", status);
-      http_req_destroy(req);
-  } else {
-      syslog(LOG_ERR,"ServerHTTP: Error getting request\n");
+  while(cstatus == Open && !end){
+	  req = http_get_request(conn_fd);
+	  if(req != NULL){
+	      syslog(LOG_INFO,"ServerHTTP: Request caught. Method %s. Path %s. Errorcode %d\n",     http_get_method(req),http_get_path(req),http_get_error(req));
+	      syslog(LOG_INFO,"ServerHTTP: Sending reply\n");
+              cstatus = http_get_connection_status(req);
+	      status = http_reply_send(conn_fd, req, end);
+	      syslog(LOG_INFO,"ServerHTTP: %d Bytes of Reply Sent\n", status);
+	      http_req_destroy(req);
+	  } else {
+	      syslog(LOG_ERR,"ServerHTTP: Error getting request\n");
+	  }
   }
  
   socket_close(conn_fd);  
@@ -92,10 +99,10 @@ int main(int argc, char **argv){
    pool_thread *pool;
 
    /*DAEMON*/ 
-   if(daemonProcess() != EXIT_SUCCESS){
+   /*if(daemonProcess() != EXIT_SUCCESS){
        syslog(LOG_ERR, "ServerHTTP: Error creando daemon.\n");
        return EXIT_FAILURE;
-   }
+   }*/
    
    /*Ignoramos SIGINT, es la que cerrara de manera limpia el server*/
    if(end_handler_signal(SIGINT) != 0){

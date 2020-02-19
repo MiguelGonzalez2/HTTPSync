@@ -15,6 +15,7 @@
 #include <arpa/inet.h> /*AF_INET tipo de socket*/
 #include <string.h> /*Memset*/
 #include <netinet/in.h> /*struct sockaddr_in*/
+#include <fcntl.h>
 #include <unistd.h> 
 #include "libsocket.h"
 
@@ -186,4 +187,50 @@ int socket_receive(int socket_fd, char *data, int size){
 	
 	return nread;
 	
+}
+
+/****
+* FUNCIÓN: int socket_receive_nonblock(int socket_fd, char *data, int size)
+* ARGS_IN: int socket_fd: Descriptor del socket/conexion por el que recibir los datos.
+*          char* data - comienzo del espacio de memoria donde se copiaran los datos.
+*          int size: Numero de bytes a recibir.
+* DESCRIPCIÓN: Recibe datos a traves de un socket/conexion. La recepcion es bloqueante hasta obtener los datos. La recepcion es no bloqueante.
+* ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito y -1 en caso de error.
+****/
+int socket_receive_nonblock(int socket_fd, char *data, int size){
+    int i, num_chunks, nbytes, ret, nread = 0, flags;
+	
+	if(data == NULL || size <= 0){
+	    return -1;
+	}
+
+        /*Asignamos al socket que sea no bloqueante*/
+        flags = fcntl(socket_fd, F_GETFL);
+        fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK);
+	
+	/*Calculamos el numero de trozos*/
+	num_chunks = (size-1) / CHUNK_SIZE +1;
+	
+	/*Los vamos leyendo sucesivamente*/
+	for(i = 0; i < num_chunks; i++){
+		/*Calculamos cuantos bytes van en este chunk*/
+		if(i == (num_chunks-1)){
+		    nbytes = size - CHUNK_SIZE*i;	
+		} else {
+			nbytes = CHUNK_SIZE;
+		}
+		
+		/*Escribimos*/
+		ret = read(socket_fd, data + i*CHUNK_SIZE, nbytes); 
+                /*Ante una lectura de 0 bytes salimos*/
+		if(ret <= 0){
+                        fcntl(socket_fd, F_SETFL, flags);
+			return nread;
+		}
+		
+		nread += ret;
+	}
+	
+        fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK);
+	return nread;
 }

@@ -114,11 +114,12 @@ int http_reply_send(int conn_fd, request_t *req, int connection_close){
 		}
         }
        
-        if(connection_close){
-            strcat(header, "Connection: close\r\n");
-        }
-
     } 
+
+    if(connection_close){
+            strcat(header, "Connection: close\r\n");
+    }
+
 
     if(err == OK &&!strcmp(method, "OPTIONS")){
         strcat(header, "Allow: GET,POST,OPTIONS\r\n");
