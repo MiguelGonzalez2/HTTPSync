@@ -26,17 +26,19 @@ char *http_reply_getdate();
 /****
 * FUNCIÓN: int http_reply_send(int conn_fd, request_t *req)
 * ARGS_IN: int conn_fd: Descriptor del socket al que enviar la reply.
-*          request_t req: Peticion a la que responder.
-*          int connection_close: Debe ponerse a un valor distinto de 0
-*          si se va a cerrar el socket tras enviar esta respuesta.
+*          request_t req: Peticion a la que responder. Si es NULL la respuesta
+*          contendra informacion minima (fecha y nombre), y un error (400 o 408 si es timeout)
+*          connectionStatus connection_close: Si esta puesto a "Close", notifica
+*          al receptor de cierre de conexion. Si esta puesto a "TimedOut", notifica de
+*          temporizador.
 * DESCRIPCIÓN: Recibe una peticion y responde segun lo solicitado.
 * ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito.
 ****/
-int http_reply_send(int conn_fd, request_t *req, int connection_close){
+int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_close){
     
     /*Cabecera del mensaje HTTP*/
     char header[2048]; 
-    char *path;
+    char *path=NULL;
     char *method;
     char *buffer;
     http_req_error err;
@@ -47,10 +49,15 @@ int http_reply_send(int conn_fd, request_t *req, int connection_close){
    
     /*Anadimos la version HTTP*/
     strcat(header, "HTTP/1.1 ");
+
     /*Comprobar status de la request*/
-    err = http_get_error(req);
-    method = http_get_method(req);
-    path = http_get_path(req);
+    if(req != NULL){
+        err = http_get_error(req);
+        method = http_get_method(req);
+        path = http_get_path(req);
+    } else {
+        err = BadRequest;
+    }
 
     /*Preparamos el path relativo quitando la barra*/
     if(path != NULL && path[0] == '/'){
@@ -70,6 +77,8 @@ int http_reply_send(int conn_fd, request_t *req, int connection_close){
             /*Quitamos OK del err*/
             err = BadRequest;
         }    
+    } else if (connection_close == TimedOut){
+        strcat(header, "408 Request Timeout\r\n");
     } else if(err == BadRequest){
         strcat(header, "400 Bad Request\r\n");
     } else {
@@ -112,13 +121,16 @@ int http_reply_send(int conn_fd, request_t *req, int connection_close){
 		    strcat(header, buffer);
 		    free(buffer);
 		}
+        } else {
+             /*Es OPTIONS, No se envia contenido*/
+             strcat(header, "Content-Length: 0\r\n");
         }
        
     } else {
          strcat(header, "Content-Length: 0\r\n");
     } 
 
-    if(connection_close){
+    if(connection_close!=Open){
             strcat(header, "Connection: close\r\n");
     }
 

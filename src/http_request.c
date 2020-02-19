@@ -33,7 +33,7 @@ request_t* http_get_request(int socket_fd){
     /*Reservamos memoria para la struct request*/   
     request = malloc(sizeof(request_t));
     if(request == NULL){
-        syslog(LOG_ERR,"Error al reservar memoria para la struct request_t.");
+        syslog(LOG_ERR,"HTTPServer: Error al reservar memoria para la struct request_t.");
         return NULL;
     }
 
@@ -55,8 +55,9 @@ request_t* http_get_request(int socket_fd){
     if(bytes <= 0){
         free(request);
         free(requestString);
-        if(errno != EINTR){
-        	syslog(LOG_ERR,"Error al leer del socket. %d bytes",bytes);
+        /*Solo se trata de un error cuando no sea un timeout ni un SIGINT*/
+        if(errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK){
+        	syslog(LOG_ERR,"HTTPServer: Error al leer del socket. %d bytes",bytes);
         }
         return NULL;
     }
@@ -64,7 +65,7 @@ request_t* http_get_request(int socket_fd){
     /*Si se llena el buffer devolevemos el error RequestTooLong*/   
     if(bytes == MAX_REQUEST_LENGTH){
         request->errorType = RequestTooLong;
-        syslog(LOG_ERR,"Tamanio de la request demasiado grande.");
+        syslog(LOG_ERR,"HTTPServer: Tamanio de la request demasiado grande.");
         
         /*Limpiamos el buffer*/
         do{
@@ -72,7 +73,10 @@ request_t* http_get_request(int socket_fd){
             if(bytes < 0){
                 free(request);
                 free(requestString);
-                syslog(LOG_ERR,"Error limpiando el socket");
+                /*Solo se trata de un error cuando no sea un timeout ni un SIGINT*/
+                if(errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK){
+                    syslog(LOG_ERR,"HTTPServer: Error limpiando el socket");
+                }
                 return NULL;
             }
             
@@ -89,7 +93,7 @@ request_t* http_get_request(int socket_fd){
 
     if(err ==-1){
         free(requestString);
-        syslog(LOG_ERR, "Error de PicoHTTPParser with code %d", err);
+        syslog(LOG_ERR, "HTTPServer: Error de PicoHTTPParser with code %d", err);
         return request;
     }
 
@@ -130,6 +134,12 @@ request_t* http_get_request(int socket_fd){
             /*Si hemos encontrado el header con nombre Connection salimos*/
             connFound = 1;
         }
+    }
+
+    /*Por seguridad: Impedimos /../ en la URI puesto que
+      permitiria acceder a contenidos en directorios ajenos al server*/
+    if(strstr(request->path, "/../") != NULL){
+        request->errorType = BadRequest;
     }
 
     free(requestString);

@@ -14,11 +14,13 @@
 /****
 * FUNCIÓN: int http_reply_send(int conn_fd, request_t *req)
 * ARGS_IN: int conn_fd: Descriptor del socket al que enviar la reply.
-*          request_t req: Peticion a la que responder.
-*          int connection_close: Debe ponerse a un valor distinto de 0
-*          si se va a cerrar el socket tras enviar esta respuesta.
+*          request_t req: Peticion a la que responder. Si es NULL la respuesta
+*          contendra informacion minima (fecha y nombre), y un error (400 o 408 si es timeout)
+*          connectionStatus connection_close: Si esta puesto a "Close", notifica
+*          al receptor de cierre de conexion. Si esta puesto a "TimedOut", notifica de
+*          temporizador.
 * DESCRIPCIÓN: Recibe una peticion y responde segun lo solicitado.
 * ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito.
 ****/
-int http_reply_send(int conn_fd, request_t *req, int connection_close);
+int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_close);
 #endif

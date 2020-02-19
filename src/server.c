@@ -13,6 +13,8 @@
 #include <errno.h>
 #include <string.h>
 #include <syslog.h>
+#include <sys/socket.h> /*Timer del socket*/
+#include <sys/time.h> /*Timer del socket*/
 #include "daemon.h"
 #include "libPoolThreads.h"
 #include "libsocket.h"
@@ -22,6 +24,7 @@
 #define HTTP_SERVER_PORT 8080 /*!<Puerto para el server*/
 #define LISTEN_QUEUE 5 /*!<Cola de espera para conexiones no aceptadas*/
 #define THREAD_NO 20 /*!<Numero de hilos*/
+#define READ_TIMEOUT 5 /*Temporizador para operaciones de lectura*/
 
 int end = 0; /*Indica el fin del programa*/
 
@@ -41,6 +44,8 @@ int thread_work(int server_fd){
    int conn_fd, port, addr, status;
    request_t *req;
    connectionStatus cstatus = Open;
+   connectionStatus replyStatus;
+   struct timeval tv;
 
    syslog(LOG_INFO, "ServerHTTP: Hilo esperando conexiones.\n");
    conn_fd = socket_accept(server_fd, &port, &addr);
@@ -51,16 +56,36 @@ int thread_work(int server_fd){
 
   syslog(LOG_INFO, "ServerHTTP: Conexion establecida en puerto %d e IP %d\n", port, addr);
 
+  /*Ajustamos un timer a las operaciones de lectura para evitar stalls del cliente*/
+  tv.tv_sec = READ_TIMEOUT;
+  status = setsockopt(conn_fd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval));
+  if(status == -1){
+    syslog(LOG_ERR, "ServerHTTP: Error estableciendo timer del socket\n");
+    return -1;
+  }
+
   while(cstatus == Open && !end){
 	  req = http_get_request(conn_fd);
 	  if(req != NULL){
+
 	      syslog(LOG_INFO,"ServerHTTP: Request caught. Method %s. Path %s. Errorcode %d\n",     http_get_method(req),http_get_path(req),http_get_error(req));
 	      syslog(LOG_INFO,"ServerHTTP: Sending reply\n");
+
               cstatus = http_get_connection_status(req);
-	      status = http_reply_send(conn_fd, req, end);
+              replyStatus = (end) ? Close : Open;
+	      status = http_reply_send(conn_fd, req, replyStatus);
+
 	      syslog(LOG_INFO,"ServerHTTP: %d Bytes of Reply Sent\n", status);
+
 	      http_req_destroy(req);
 	  } else {
+              /*Salta el timer*/
+              if(errno == EAGAIN || errno == EWOULDBLOCK){
+                  syslog(LOG_INFO, "ServerHTTP: Closing socket on client timeout.");
+                  /*Enviamos un 408 Request Timeout*/
+                  cstatus = TimedOut;
+                  http_reply_send(conn_fd, NULL, cstatus);
+              }
               if(!end){
 		      syslog(LOG_ERR,"ServerHTTP: Error getting request\n");
 		      cstatus = Close;
@@ -127,6 +152,8 @@ int main(int argc, char **argv){
        socket_close(server_fd);
        return EXIT_FAILURE;
    }
+
+   syslog(LOG_INFO, "ServerHTTP: Servidor operativo.\n");
 
    /*A la espera de una señal de cierre*/
    pause();
