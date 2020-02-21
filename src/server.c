@@ -13,8 +13,6 @@
 #include <errno.h>
 #include <string.h>
 #include <syslog.h>
-#include <sys/socket.h> /*Timer del socket*/
-#include <sys/time.h> /*Timer del socket*/
 #include "daemon.h"
 #include "libPoolThreads.h"
 #include "libsocket.h"
@@ -45,7 +43,6 @@ int thread_work(int server_fd){
    request_t *req;
    connectionStatus cstatus = Open;
    connectionStatus replyStatus;
-   struct timeval tv;
 
    syslog(LOG_INFO, "ServerHTTP: Hilo esperando conexiones.\n");
    conn_fd = socket_accept(server_fd, &port, &addr);
@@ -57,8 +54,7 @@ int thread_work(int server_fd){
   syslog(LOG_INFO, "ServerHTTP: Conexion establecida en puerto %d e IP %d\n", port, addr);
 
   /*Ajustamos un timer a las operaciones de lectura para evitar stalls del cliente*/
-  tv.tv_sec = READ_TIMEOUT;
-  status = setsockopt(conn_fd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval));
+  status = socket_set_read_timer(conn_fd, READ_TIMEOUT);
   if(status == -1){
     syslog(LOG_ERR, "ServerHTTP: Error estableciendo timer del socket\n");
     return -1;
@@ -115,6 +111,38 @@ int end_handler_signal(int signum){
 }
 
 /****
+*FUNCIÓN: void initialize_mask(int signal)
+*ARGS_IN: int signal: Senal a enmascarar
+*         int *ret: Se pondra a 0 si fue bien o -1 si fallo.
+*ARGS_OUT: sigset_t: Mascara antigua, o mascara vacia si falla.
+*DESCRIPCION: Inicializa una mascara con la señal pasada, o vacia si
+* se pasa un -1.
+****/
+sigset_t initialize_mask(int signal, int *ret){
+    sigset_t set;
+    sigset_t old;
+    int status;
+    
+    sigemptyset(&set);
+    if(signal != -1){
+        sigaddset(&set, signal);
+    }
+
+    status = pthread_sigmask(SIG_SETMASK, &set, &old);
+
+    if(ret != NULL){
+        *ret = status;
+    }
+
+    if(status == 0){
+        return old;
+    }
+    
+    sigemptyset(&old);
+    return old;
+}
+
+/****
 *FUNCIÓN: int main(int argc, char **argv)
 *ARGS_IN: int argc: Numero de parametros de entrada
           char **argv: Parametros de entrada
@@ -124,6 +152,8 @@ int end_handler_signal(int signum){
 ****/
 int main(int argc, char **argv){
    int server_fd;
+   int status;
+   sigset_t old;
    pool_thread *pool;
 
    /*DAEMON*/ 
@@ -135,6 +165,13 @@ int main(int argc, char **argv){
    /*Ignoramos SIGINT, es la que cerrara de manera limpia el server*/
    if(end_handler_signal(SIGINT) != 0){
        syslog(LOG_ERR, "ServerHTTP: Error creando el manejador de la senial SIGINT.\n");
+       return EXIT_FAILURE;
+   }
+
+   /*Enmascaramos SIGINT*/
+   old = initialize_mask(SIGINT, &status);
+   if(status == -1){
+       syslog(LOG_ERR, "ServerHTTP: Error enmascarando senales.\n");
        return EXIT_FAILURE;
    }
 
@@ -156,7 +193,7 @@ int main(int argc, char **argv){
    syslog(LOG_INFO, "ServerHTTP: Servidor operativo.\n");
 
    /*A la espera de una señal de cierre*/
-   pause();
+   sigsuspend(&old);
 
    syslog(LOG_INFO, "ServerHTTP: Inicio de cierre del servidor.\n");
 

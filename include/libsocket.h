@@ -74,4 +74,16 @@ int socket_receive(int socket_fd, char *data, int size);
 * ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito y -1 en caso de error.
 ****/
 int socket_receive_nonblock(int socket_fd, char *data, int size);
+
+/****
+* FUNCIÓN: int socket_set_read_timer(int socket_fd, int seconds)
+* ARGS_IN: int socket_fd: Descriptor del socket/conexion afectado.
+*          int seconds : valor en segundos del temporizador.
+* DESCRIPCIÓN: Ajusta un temporizador al socket deseado, de tal manera
+* que si se queda bloqueado en socket_receive mas del tiempo indicado,
+* socket_receive devolvera -1 (o el numero de bytes transferidos hasta
+* el momento) y ajustara el errno a EAGAIN o EWOULDBLOCK
+* ARGS_OUT: int - Devuelve -1 en caso de error, 0 en caso contrario.
+****/
+int socket_set_read_timer(int socket_fd, int seconds);
 #endif

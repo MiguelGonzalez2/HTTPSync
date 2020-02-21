@@ -15,6 +15,7 @@
 #include <arpa/inet.h> /*AF_INET tipo de socket*/
 #include <string.h> /*Memset*/
 #include <netinet/in.h> /*struct sockaddr_in*/
+#include <sys/time.h> /*Timer*/
 #include <fcntl.h>
 #include <unistd.h> 
 #include "libsocket.h"
@@ -233,4 +234,20 @@ int socket_receive_nonblock(int socket_fd, char *data, int size){
 	
         fcntl(socket_fd, F_SETFL, flags & ~O_NONBLOCK);
 	return nread;
+}
+
+/****
+* FUNCIÓN: int socket_set_read_timer(int socket_fd, int seconds)
+* ARGS_IN: int socket_fd: Descriptor del socket/conexion afectado.
+*          int seconds : valor en segundos del temporizador.
+* DESCRIPCIÓN: Ajusta un temporizador al socket deseado, de tal manera
+* que si se queda bloqueado en socket_receive mas del tiempo indicado,
+* socket_receive devolvera -1 (o el numero de bytes transferidos hasta
+* el momento) y ajustara el errno a EAGAIN o EWOULDBLOCK
+* ARGS_OUT: int - Devuelve -1 en caso de error, 0 en caso contrario.
+****/
+int socket_set_read_timer(int socket_fd, int seconds){
+    struct timeval tv;
+    tv.tv_sec = seconds;
+    return setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval));
 }
