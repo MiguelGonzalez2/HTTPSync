@@ -18,6 +18,7 @@
 #include "libsocket.h"
 #include "http_request.h"
 #include "http_reply.h"
+#include "configFile.h"
  
 #define HTTP_SERVER_PORT 8080 /*!<Puerto para el server*/
 #define LISTEN_QUEUE 5 /*!<Cola de espera para conexiones no aceptadas*/
@@ -53,43 +54,38 @@ int thread_work(int server_fd){
       return (errno == EINTR);
    }
 
-  syslog(LOG_INFO, "ServerHTTP: Conexion establecida en puerto %d e IP %d\n", port, addr);
+   syslog(LOG_INFO, "ServerHTTP: Conexion establecida en puerto %d e IP %d\n", port, addr);
 
-  /*Ajustamos un timer a las operaciones de lectura para evitar stalls del cliente*/
-  status = socket_set_read_timer(conn_fd, READ_TIMEOUT);
-  if(status == -1){
-    syslog(LOG_ERR, "ServerHTTP: Error estableciendo timer del socket\n");
-    return -1;
-  }
-
-  while(cstatus == Open && !end){
-	  req = http_get_request(conn_fd);
-	  if(req != NULL){
-
-	      syslog(LOG_INFO,"ServerHTTP: Request caught. Method %s. Path %s. Errorcode %d\n",     http_get_method(req),http_get_path(req),http_get_error(req));
-	      syslog(LOG_INFO,"ServerHTTP: Sending reply\n");
-
-              cstatus = http_get_connection_status(req);
-              replyStatus = (end) ? Close : Open;
-	      status = http_reply_send(conn_fd, req, replyStatus);
-
-	      syslog(LOG_INFO,"ServerHTTP: %d Bytes of Reply Sent\n", status);
-
-	      http_req_destroy(req);
-	  } else {
-              /*Salta el timer*/
-              if(errno == EAGAIN || errno == EWOULDBLOCK){
-                  syslog(LOG_INFO, "ServerHTTP: Closing socket on client timeout.");
-                  /*Enviamos un 408 Request Timeout*/
-                  cstatus = TimedOut;
-                  http_reply_send(conn_fd, NULL, cstatus);
-              }
-              if(!end){
-		      syslog(LOG_ERR,"ServerHTTP: Error getting request\n");
-		      cstatus = Close;
-              }
-	  }
-  }
+   /*Ajustamos un timer a las operaciones de lectura para evitar stalls del cliente*/
+   status = socket_set_read_timer(conn_fd, READ_TIMEOUT);
+   if(status == -1){
+       syslog(LOG_ERR, "ServerHTTP: Error estableciendo timer del socket\n");
+       return -1;
+   } 
+   while(cstatus == Open && !end){ 
+        req = http_get_request(conn_fd); 
+        if(req != NULL){ 
+            syslog(LOG_INFO,"ServerHTTP: Request caught. Method %s. Path %s. Errorcode %d\n",     http_get_method(req),http_get_path(req),http_get_error(req));
+            syslog(LOG_INFO,"ServerHTTP: Sending reply\n");
+            cstatus = http_get_connection_status(req);
+            replyStatus = (end) ? Close : Open;
+	        status = http_reply_send(conn_fd, req, replyStatus);
+            syslog(LOG_INFO,"ServerHTTP: %d Bytes of Reply Sent\n", status);
+            http_req_destroy(req);
+        } else {
+            /*Salta el timer*/
+            if(errno == EAGAIN || errno == EWOULDBLOCK){
+                syslog(LOG_INFO, "ServerHTTP: Closing socket on client timeout.");
+                /*Enviamos un 408 Request Timeout*/
+                cstatus = TimedOut;
+                http_reply_send(conn_fd, NULL, cstatus);
+            }
+            if(!end){
+                syslog(LOG_ERR,"ServerHTTP: Error getting request\n");
+                cstatus = Close;
+            }
+        }
+   }
  
   socket_close(conn_fd);  
   syslog(LOG_INFO, "ServerHTTP: Cerrando la conexion en puerto %d e IP %d\n", port, addr);
@@ -99,7 +95,7 @@ int thread_work(int server_fd){
 /****
 *FUNCIÓN: int end_handler_signal(int signum)
 *ARGS_IN: int signum: Señal que marcara el fin del programa.
-*DESCRIPCION: Permite sobreescribir la accicon de una señal por un nop.
+*DESCRIPCION: Permite sobreescribir la accion de una señal por un nop.
 *ARGS_OUT: int - 0 si exito, -1 si fallo.
 ****/
 int end_handler_signal(int signum){
@@ -157,10 +153,19 @@ int main(int argc, char **argv){
    int status;
    sigset_t old;
    pool_thread *pool;
+   config_t* config;
+
+   /*Parseo del fichero de configuracion*/
+   config = ini_config_file();
+   if(config == NULL){
+       syslog(LOG_ERR, "Error al parsear el fichero de configuracion");
+       return EXIT_FAILURE;
+   }
 
    /*DAEMON*/ 
    if(daemonProcess() != EXIT_SUCCESS){
        syslog(LOG_ERR, "ServerHTTP: Error creando daemon.\n");
+       free_config_file(config);
        return EXIT_FAILURE;
    }
    
@@ -174,13 +179,15 @@ int main(int argc, char **argv){
    old = initialize_mask(SIGINT, &status);
    if(status == -1){
        syslog(LOG_ERR, "ServerHTTP: Error enmascarando senales.\n");
+       free_config_file(config);
        return EXIT_FAILURE;
    }
 
    /*Abrimos el servidor*/
-   server_fd = socket_server_init(NULL, HTTP_SERVER_PORT, LISTEN_QUEUE);
+   server_fd = socket_server_init(NULL, get_config_file_port(config), LISTEN_QUEUE);
    if(server_fd == -1){
        syslog(LOG_ERR, "ServerHTTP: Error inicializando server.\n");
+       free_config_file(config);
        return EXIT_FAILURE;
    }
 
@@ -188,6 +195,7 @@ int main(int argc, char **argv){
    pool = pool_th_ini(&thread_work, THREAD_NO, server_fd);
    if(pool == NULL){
        syslog(LOG_ERR, "ServerHTTP: Error inicializando pool de hilos.\n");
+       free_config_file(config);
        socket_close(server_fd);
        return EXIT_FAILURE;
    }
@@ -209,6 +217,9 @@ int main(int argc, char **argv){
    pool_th_destroy(pool);
    /*Cerramos el socket*/ 
    socket_close(server_fd);
+
+   /*Liberamos la struct con el config file parseado*/
+   free_config_file(config);
 
    syslog(LOG_INFO, "ServerHTTP: Cierre del servidor con exito\n");
    

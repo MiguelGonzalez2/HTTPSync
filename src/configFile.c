@@ -7,6 +7,7 @@
 **/
 
 #include "configFile.h"
+#include <stdio.h>
 #include <confuse.h>
 #include <syslog.h>
 #include <stdlib.h>
@@ -89,4 +90,53 @@ void free_config_file(config_t* config){
 
     free(config);
     config = NULL;
+}
+
+/*
+*FUNCIÓN: long int get_config_file_port(config_t* config){
+*ARGS_IN: config_t*: Estructura config de la que extraemos el puerto
+*DESCRIPCION: Devuelve el puerto que usa el servidor
+*ARGS_OUT: long int: El puerto que usa el servidor
+****/
+long int get_config_file_port(config_t* config){
+
+    if(config == NULL) return -1;
+    return config->listen_port; 
+}
+
+/*
+*FUNCIÓN: long int get_config_file_max_clients(config_t* config){
+*ARGS_IN: config_t*: Estructura config de la que extraemos el máximo de clientes
+*DESCRIPCION: Devuelve el numero maximo de clientes que acepta el servidor
+*ARGS_OUT: long int: El numero maximo de clientes
+****/
+long int get_config_file_maxClients(config_t* config){
+
+    if(config == NULL) return -1;
+    return config->max_clients; 
+}
+
+
+/*
+*FUNCIÓN: char* get_config_file_serverRoot(config_t* config){
+*ARGS_IN: config_t*: Estructura config de la que extraemos el server_root
+*DESCRIPCION: Devuelve el directorio root del servidor
+*ARGS_OUT: char* : El directorio root del servidor
+****/
+char* get_config_file_serverRoot(config_t* config){
+
+    if(config == NULL) return NULL;
+    return config->server_root; 
+}
+
+/*
+*FUNCIÓN: char* get_config_file_serverSignature(config_t* config){
+*ARGS_IN: config_t*: Estructura config de la que extraemos el nombre del server
+*DESCRIPCION: Devuelve el nombre del servidor
+*ARGS_OUT: char* : El nombre del servidor
+****/
+char* get_config_file_serverSignature(config_t* config){
+
+    if(config == NULL) return NULL;
+    return config->server_signature; 
 }
