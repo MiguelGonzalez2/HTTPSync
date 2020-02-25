@@ -36,7 +36,7 @@ $(LIB)libPicohttpparser.a: $(BINLIB)libPicohttpparser.o $(LIB)
 	ar rcs $(LIB)libPicohttpparser.a $<
 
 #Ejecutable
-$(EXE): $(LIB)libsocket.a $(LIB)libPoolThreads.a $(LIB)libPicohttpparser.a $(BIN)daemon.o $(BIN)server.o $(BIN)http_request.o $(BIN)http_reply.o
+$(EXE): $(LIB)libsocket.a $(LIB)libPoolThreads.a $(LIB)libPicohttpparser.a $(BIN)daemon.o $(BIN)server.o $(BIN)http_request.o $(BIN)http_reply.o $(BIN)config.o
 	$(CC) $(flags) -o $(EXE) $(BIN)server.o $(BIN)daemon.o $(BIN)http_request.o $(BIN)http_reply.o -lsocket -lPoolThreads -lpthread -lPicohttpparser
 
 #Regla para compilar objetos de libreria.
