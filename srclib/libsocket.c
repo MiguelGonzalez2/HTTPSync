@@ -249,5 +249,6 @@ int socket_receive_nonblock(int socket_fd, char *data, int size){
 int socket_set_read_timer(int socket_fd, int seconds){
     struct timeval tv;
     tv.tv_sec = seconds;
+    tv.tv_usec = 0;
     return setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval));
 }

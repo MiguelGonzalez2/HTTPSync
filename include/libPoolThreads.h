@@ -48,4 +48,12 @@ void pool_th_stop(pool_thread *p_threads);
 ****/
 void pool_th_wait(pool_thread *p_threads);
 
+/****
+*FUNCIÓN: void pool_th_cancel_state(int disable)
+*ARGS_IN: int disable: Poner a 1 para deshabilitar la cancelacion del hilo, 0 para habilitarla.
+*DESCRIPCION: Deshabilita la cancelacion de los hilos.
+*ARGS_OUT: none
+****/
+void pool_th_cancel_state(int disable);
+
 #endif 

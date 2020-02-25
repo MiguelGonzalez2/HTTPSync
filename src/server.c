@@ -22,7 +22,7 @@
 #define HTTP_SERVER_PORT 8080 /*!<Puerto para el server*/
 #define LISTEN_QUEUE 5 /*!<Cola de espera para conexiones no aceptadas*/
 #define THREAD_NO 20 /*!<Numero de hilos*/
-#define READ_TIMEOUT 5 /*Temporizador para operaciones de lectura*/
+#define READ_TIMEOUT 10 /*Temporizador para operaciones de lectura*/
 
 int end = 0; /*Indica el fin del programa*/
 
@@ -45,7 +45,9 @@ int thread_work(int server_fd){
    connectionStatus replyStatus;
 
    syslog(LOG_INFO, "ServerHTTP: Hilo esperando conexiones.\n");
+   pool_th_cancel_state(0);
    conn_fd = socket_accept(server_fd, &port, &addr);
+   pool_th_cancel_state(1);
    if(conn_fd == -1){
       /*Solo consideramos que ha sido fallo si no fue por EINTR*/
       return (errno == EINTR);

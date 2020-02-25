@@ -39,11 +39,11 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
     /*Cabecera del mensaje HTTP*/
     char header[2048]; 
     char *path=NULL;
-    char *method;
-    char *buffer;
-    http_req_error err;
+    char *method = NULL;
+    char *buffer = NULL;
+    http_req_error err = BadRequest;
     /*Determina si se trata de OPTIONS * que no trata sobre un fichero*/
-    int options, size;
+    int options = 0, size = 0;
 
     memset(header, 0, 2048);
    
@@ -55,8 +55,6 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
         err = http_get_error(req);
         method = http_get_method(req);
         path = http_get_path(req);
-    } else {
-        err = BadRequest;
     }
 
     /*Preparamos el path relativo quitando la barra*/

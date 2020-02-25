@@ -29,6 +29,9 @@ struct _pool_thread{
 };
 
 void th_main(struct _thread_args *argumentos);
+void cleanup_handler(void *arg){
+    return;
+}
 
 /****
 *FUNCIÓN: pool_thread  *pool_th_ini(void *func, int num_threads)
@@ -183,10 +186,14 @@ void pool_th_stop(pool_thread *p_threads){
 
     p_threads->args->stop = 1;
 
-    /*Sacar a los threads de bloqueos*/
+    /*Cancelar los hilos*/
     for(i = 0; i < p_threads->num_threads; i++){
-        pthread_kill(p_threads->tid[i], SIGINT);
+        pthread_cancel(p_threads->tid[i]);
     }
+
+    /*Limpiar*/
+    pthread_cleanup_push(cleanup_handler, NULL);
+    pthread_cleanup_pop(NULL);
 }
 
 /****
@@ -204,5 +211,20 @@ void pool_th_wait(pool_thread *p_threads){
 
     for(i = 0; i < p_threads->num_threads; i++){
         pthread_join(p_threads->tid[i], NULL);
+    }
+    return;
+}
+
+/****
+*FUNCIÓN: void pool_th_cancel_state(int disable)
+*ARGS_IN: int disable: Poner a 1 para deshabilitar la cancelacion del hilo, 0 para habilitarla.
+*DESCRIPCION: Deshabilita la cancelacion de los hilos.
+*ARGS_OUT: none
+****/
+void pool_th_cancel_state(int disable){
+    if(disable){
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE,NULL);
+    }else{
+        pthread_setcancelstate(PTHREAD_CANCEL_ENABLE,NULL);
     }
 }

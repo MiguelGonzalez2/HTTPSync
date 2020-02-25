@@ -110,7 +110,8 @@ request_t* http_get_request(int socket_fd){
     /*Reemplazamos el path '/' */
     strCompareRes = strcmp(request->path, "/");
     if(!strCompareRes){
-        if(realloc(request->path,strlen(DEFAULT_URI) + 1) == NULL){
+        request->path = realloc(request->path,strlen(DEFAULT_URI) + 1);
+        if(request->path == NULL){
             http_req_destroy(request);
             return NULL;
         }
