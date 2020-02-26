@@ -11,6 +11,7 @@
 #include <confuse.h>
 #include <syslog.h>
 #include <stdlib.h>
+#include <string.h>
 
 /*Warnings al usar la librería confuse*/
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -39,6 +40,8 @@ config_t* ini_config_file(){
     if(config == NULL){
         return NULL;
     }
+ 
+    memset(config, 0, sizeof(config_t));
 
     cfg_opt_t opts[] = {
         CFG_SIMPLE_STR("server_root", &(config->server_root)),

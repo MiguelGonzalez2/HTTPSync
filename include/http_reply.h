@@ -19,8 +19,9 @@
 *          connectionStatus connection_close: Si esta puesto a "Close", notifica
 *          al receptor de cierre de conexion. Si esta puesto a "TimedOut", notifica de
 *          temporizador.
+*          char *server_name : nombre del servidor
 * DESCRIPCIÓN: Recibe una peticion y responde segun lo solicitado.
 * ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito.
 ****/
-int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_close);
+int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_close, char *server_name);
 #endif

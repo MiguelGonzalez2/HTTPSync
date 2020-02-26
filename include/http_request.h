@@ -17,13 +17,14 @@ typedef enum {OK, BadRequest, RequestTooLong} http_req_error;
 typedef enum {Open, Close, TimedOut} connectionStatus;
 
 /****
-*FUNCION: request_t* http_getRequest()
+*FUNCION: request_t* http_get_request()
 *ARGS_IN: int socket_fd: Descriptor del socket/conexion del que parsear la request
+*         char *web_dir: directorio raiz del servidor
 *DESCRIPCION: Crea una estructura request.
 *ARGS_OUT: Devuelve un puntero a una estructura request_t. Si hay un error se indica en
 *la variable errorType de la estructura.
 ****/
-request_t* http_get_request(int socket_fd);
+request_t* http_get_request(int socket_fd, char *web_dir);
 
 /****
 *FUNCION: char *http_get_method(request *req)

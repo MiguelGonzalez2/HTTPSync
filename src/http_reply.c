@@ -31,10 +31,11 @@ char *http_reply_getdate();
 *          connectionStatus connection_close: Si esta puesto a "Close", notifica
 *          al receptor de cierre de conexion. Si esta puesto a "TimedOut", notifica de
 *          temporizador.
+*          char *server_name : nombre del servidor
 * DESCRIPCIÓN: Recibe una peticion y responde segun lo solicitado.
 * ARGS_OUT: int - Devuelve el numero de bytes transferidos con exito.
 ****/
-int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_close){
+int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_close, char *server_name){
     
     /*Cabecera del mensaje HTTP*/
     char header[2048]; 
@@ -55,11 +56,6 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
         err = http_get_error(req);
         method = http_get_method(req);
         path = http_get_path(req);
-    }
-
-    /*Preparamos el path relativo quitando la barra*/
-    if(path != NULL && path[0] == '/'){
-            path ++;
     }
 
     if(err == OK){
@@ -92,7 +88,9 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
     }
 
     /*Aniadimos datos del server*/
-    strcat(header, "Server: HTTPServer by A.B and M.G\r\n");
+    strcat(header, "Server: ");
+    strcat(header, server_name);
+    strcat(header, "\r\n");
 
     if(!options && err==OK){
         /*Fecha de modificacion*/
@@ -183,6 +181,7 @@ char *http_reply_gettype(char *path){
 
     /*Caso en el que no hay extensiones*/
     if(extension == 0 && path[0] != '.'){
+        free(content_type);
         return NULL;
     }
  
@@ -205,6 +204,7 @@ char *http_reply_gettype(char *path){
     } else if (!strcmp(&path[i+1],"pdf")){
         strcpy(content_type, "application/pdf");
     } else {
+        free(content_type);
         return NULL;
     }
 

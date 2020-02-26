@@ -17,18 +17,26 @@ struct _request_t{
 /****
 *FUNCION: request_t* http_get_request()
 *ARGS_IN: int socket_fd: Descriptor del socket/conexion del que parsear la request
+*         char *web_dir: directorio raiz del servidor
 *DESCRIPCION: Crea una estructura request.
 *ARGS_OUT: Devuelve un puntero a una estructura request_t. Si hay un error se indica en
 *la variable errorType de la estructura.
 ****/
-request_t* http_get_request(int socket_fd){
-    int i, bytes,err,minor_version,strCompareRes,connFound = 0;
+request_t* http_get_request(int socket_fd, char *web_dir){
+    int i, bytes,err,minor_version,strCompareRes,connFound = 0, web_dir_len;
     char *requestString;
     const char *method, *path;
     size_t method_len, path_len,num_headers,prevbuflen = 0;
     struct phr_header headers[100];
 
     request_t *request = NULL;
+
+    if(web_dir == NULL){
+        syslog(LOG_ERR,"HTTPServer: Error: directorio de la web no especificado.");
+        return NULL;
+    }
+
+    web_dir_len = strlen(web_dir);
 
     /*Reservamos memoria para la struct request*/   
     request = malloc(sizeof(request_t));
@@ -97,26 +105,33 @@ request_t* http_get_request(int socket_fd){
         return request;
     }
 
+    /*Eliminamos la barra final del web_dir si la hay*/
+    if(web_dir[web_dir_len - 1] == '/'){
+        web_dir[web_dir_len - 1] = 0;
+        web_dir_len--;
+    }
+
     /*Aniadimos el path y el metodo a la struct request*/
     request->method = malloc(sizeof(char) * ((int)method_len + 1));
-    request->path = malloc(sizeof(char) * ((int)path_len + 1));
+    request->path = malloc(sizeof(char) * ((int)path_len + 1 + web_dir_len));
 
     strncpy(request->method, method, (int)method_len);
     request->method[method_len] = '\0';
 
-    strncpy(request->path, path, (int)path_len);
-    request->path[path_len] = '\0';
+    strncpy(request->path, web_dir, web_dir_len);
+    strncpy(request->path + web_dir_len, path, (int)path_len);
+    request->path[path_len + web_dir_len] = '\0';
  
     /*Reemplazamos el path '/' */
-    strCompareRes = strcmp(request->path, "/");
+    strCompareRes = strcmp(request->path + web_dir_len, "/");
     if(!strCompareRes){
-        request->path = realloc(request->path,strlen(DEFAULT_URI) + 1);
+        request->path = realloc(request->path,strlen(DEFAULT_URI) + 1 + web_dir_len);
         if(request->path == NULL){
             http_req_destroy(request);
             return NULL;
         }
 
-        strcpy(request->path,DEFAULT_URI);
+        strcpy(request->path + web_dir_len,DEFAULT_URI);
     }
 
     /*Valores asignados cuando no hay errores*/
