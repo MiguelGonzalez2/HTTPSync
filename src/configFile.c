@@ -1,9 +1,8 @@
 /** *
-*
+* Modulo que procesa los ficheros de configuracion.
 *@author Alejandro Bravo, Miguel Gonzalez
 *@version 1.0
 *@date 12-02-2020
-
 **/
 
 #include "configFile.h"
@@ -22,6 +21,7 @@ struct _config_t{
     long int max_clients;
     long int listen_port;
     char *server_signature;
+    long int daemon_mode;
 };
 
 /****
@@ -41,13 +41,20 @@ config_t* ini_config_file(){
         return NULL;
     }
  
-    memset(config, 0, sizeof(config_t));
+    config->max_clients = DEFAULT_MAX_CLIENTS;
+    config->listen_port = DEFAULT_LISTEN_PORT;
+    config->daemon_mode = DEFAULT_DAEMON_MODE;
+    config->server_root = malloc(sizeof(char) * (strlen(DEFAULT_SERVER_ROOT)+1));
+    strcpy(config->server_root, DEFAULT_SERVER_ROOT);
+    config->server_signature = malloc(sizeof(char) * (strlen(DEFAULT_SERVER_SIGNATURE)+1));
+    strcpy(config->server_signature, DEFAULT_SERVER_SIGNATURE);
 
     cfg_opt_t opts[] = {
         CFG_SIMPLE_STR("server_root", &(config->server_root)),
         CFG_SIMPLE_STR("server_signature", &(config->server_signature)),
         CFG_SIMPLE_INT("max_clients", &config->max_clients),
         CFG_SIMPLE_INT("listen_port", &config->listen_port),
+        CFG_SIMPLE_INT("daemon_mode", &config->daemon_mode),
         CFG_END()
 	};
 
@@ -56,17 +63,16 @@ config_t* ini_config_file(){
     error = cfg_parse(cfg, "server.conf");
     cfg_free(cfg);
 
-    if(error == CFG_SUCCESS)return config;
-    else if(error == CFG_PARSE_ERROR){
+    if(error == CFG_PARSE_ERROR){
         syslog(LOG_ERR,"Error parseando el fichero");
-        return NULL;
+        return config;
     }
     else if(error == CFG_FILE_ERROR){
         syslog(LOG_ERR,"Error parseando el fichero");
-        return NULL;
+        return config;
     }
         
-    return NULL;
+    return config;
 
 }
 
@@ -119,6 +125,17 @@ long int get_config_file_maxClients(config_t* config){
     return config->max_clients; 
 }
 
+/*
+*FUNCIÓN: long int get_config_file_daemonMode(config_t* config){
+*ARGS_IN: config_t*: Estructura config de la que extraemos el valor.
+*DESCRIPCION: Devuelve 0 si no se ejecutara en demonio, otro valor si si.
+*ARGS_OUT: long int: Booleano que indica si es demonio.
+****/
+long int get_config_file_daemonMode(config_t* config){
+
+    if(config == NULL) return -1;
+    return config->daemon_mode; 
+}
 
 /*
 *FUNCIÓN: char* get_config_file_serverRoot(config_t* config){

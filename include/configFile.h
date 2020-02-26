@@ -1,5 +1,5 @@
 /**
-*
+* Modulo que procesa los ficheros de configuracion.
 *
 *@author Alejandro Bravo, Miguel Gonzalez
 *@version 1.0
@@ -10,10 +10,12 @@
 #ifndef CONFIG_FILE_H
 #define CONFIG_FILE_H
 
+/*Valores por defecto para los campos del fichero*/
 #define DEFAULT_MAX_CLIENTS 10 
 #define DEFAULT_LISTEN_PORT 8080 
 #define DEFAULT_SERVER_ROOT "htmlfiles/"
 #define DEFAULT_SERVER_SIGNATURE "ServerRedes"
+#define DEFAULT_DAEMON_MODE 1
 
 typedef struct _config_t config_t;
 
@@ -65,5 +67,13 @@ char* get_config_file_serverRoot(config_t* config);
 *ARGS_OUT: char* : El nombre del servidor
 ****/
 char* get_config_file_serverSignature(config_t* config);
+
+/*
+*FUNCIÓN: long int get_config_file_daemonMode(config_t* config){
+*ARGS_IN: config_t*: Estructura config de la que extraemos el valor.
+*DESCRIPCION: Devuelve 0 si no se ejecutara en demonio, otro valor si si.
+*ARGS_OUT: long int: Booleano que indica si es demonio.
+****/
+long int get_config_file_daemonMode(config_t* config);
 
 #endif

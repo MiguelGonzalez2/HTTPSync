@@ -160,11 +160,13 @@ int main(int argc, char **argv){
        return EXIT_FAILURE;
    }
 
-   /*DAEMON*/ 
-   if(daemonProcess() != EXIT_SUCCESS){
-       syslog(LOG_ERR, "ServerHTTP: Error creando daemon.\n");
-       free_config_file(config);
-       return EXIT_FAILURE;
+   /*DAEMON*/
+   if(get_config_file_daemonMode(config)){ 
+       if(daemonProcess() != EXIT_SUCCESS){
+           syslog(LOG_ERR, "ServerHTTP: Error creando daemon.\n");
+           free_config_file(config);
+           return EXIT_FAILURE;
+       }
    }
    
    /*Ignoramos SIGINT, es la que cerrara de manera limpia el server*/
