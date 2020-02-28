@@ -11,6 +11,9 @@
 
 #include "http_request.h"
 
+#define MAX_SCRIPT_OUTPUT 4096 /*!<Max size for script output*/
+#define SCRIPT_TIMEOUT 10 /*!<Max idle time for a script*/
+
 /****
 * FUNCIÓN: int http_reply_send(int conn_fd, request_t *req)
 * ARGS_IN: int conn_fd: Descriptor del socket al que enviar la reply.

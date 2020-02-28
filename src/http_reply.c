@@ -10,18 +10,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/prctl.h>
 #include <time.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
+#include <signal.h>
+#include <sys/time.h>
 #include "libsocket.h"
 #include "http_reply.h"
+#include "errno.h"
 
-char *http_reply_gettype(char *path);
+typedef enum {NONE, PHP, PYTHON3} script_type;
+
+char *http_reply_gettype(char *path, script_type *script);
 int http_send_file(int socket_fd, char *path);
 int http_file_size(char *path);
 int http_file_exists(char *path);
 char *http_reply_get_last_modified(char *path);
 char *http_reply_getdate();
+char *exec_script(char *path, script_type script);
 
 /****
 * FUNCIÓN: int http_reply_send(int conn_fd, request_t *req)
@@ -41,8 +49,9 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
     char header[2048]; 
     char *path=NULL;
     char *method = NULL;
-    char *buffer = NULL;
+    char *buffer = NULL, *content_length = NULL;
     http_req_error err = BadRequest;
+    script_type script = NONE;
     /*Determina si se trata de OPTIONS * que no trata sobre un fichero*/
     int options = 0, size = 0;
 
@@ -101,22 +110,36 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
 		free(buffer);
         }
         /*Tipo de contenido*/
-        buffer = http_reply_gettype(path);
+        buffer = http_reply_gettype(path, &script);
         if(buffer != NULL){
                 strcat(header, "Content-Type: ");
                 strcat(header, buffer);
                 free(buffer);
         }
         /*Tamano del contenido*/
-        if(strcmp(method,"OPTIONS")){
+        if(strcmp(method,"OPTIONS") && script == NONE){
 		size = http_file_size(path);
 		strcat(header, "Content-Length: ");
-		buffer = malloc(64*sizeof(char));
-		if(buffer != NULL){
-		    sprintf(buffer, "%d\r\n", size);
-		    strcat(header, buffer);
-		    free(buffer);
+		content_length = malloc(64*sizeof(char));
+		if(content_length != NULL){
+		    sprintf(content_length, "%d\r\n", size);
+		    strcat(header, content_length);
+		    free(content_length);
 		}
+        /*Si es un script calculamos el tamano y dejamos el resultado en buffer*/
+        } else if (script != NONE){
+               buffer = exec_script(path, script);
+               if(buffer == NULL){
+                   strcat(header, "Content-Length: 0\r\n");
+               } else {
+                   strcat(header, "Content-Length: ");
+                   content_length = malloc(64*sizeof(char));
+		   if(content_length != NULL){
+		       sprintf(content_length, "%d\r\n", (int) strlen(buffer));
+		       strcat(header, content_length);
+		       free(content_length);
+		   }
+               }
         } else {
              /*Es OPTIONS, No se envia contenido*/
              strcat(header, "Content-Length: 0\r\n");
@@ -126,11 +149,12 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
          strcat(header, "Content-Length: 0\r\n");
     } 
 
+    /*Informamos de que se vamos a efectuar un cierre de conexion*/
     if(connection_close!=Open){
             strcat(header, "Connection: close\r\n");
     }
 
-
+    /*Anadimos los verbos disponibles en caso de que sea OPTIONS*/
     if(err == OK &&!strcmp(method, "OPTIONS")){
         strcat(header, "Allow: GET,POST,OPTIONS\r\n");
     }
@@ -142,8 +166,11 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
     size = socket_send(conn_fd, header, strlen(header));
 
     /*Mandar el fichero*/
-    if(err==OK && !options && strcmp(method, "OPTIONS")){
+    if(err==OK && !options && strcmp(method, "OPTIONS") && script == NONE){
         size += http_send_file(conn_fd, path);
+    } else if (script != NONE && buffer != NULL){
+        size += socket_send(conn_fd, buffer, strlen(buffer));
+        free(buffer);
     }
 
     return size;
@@ -152,12 +179,13 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
 /****
 * FUNCIÓN: char *http_reply_gettype(char *path)
 * ARGS_IN: char *path: path del fichero que se ha solicitado, acabado en \0.
+*          script_type *is_script: Tipo de script si se trata de uno, NONE si no.
 * DESCRIPCIÓN: Devuelve un char con el campo Content-Type que se debe copiar.
 * Viene ya con el \r\n.
 * ARGS_OUT: char *Direccion de memoria que apunta a la cadena correspondiente.
 * devuelve NULL en caso de error. La memoria reservada debera liberarse.
 ****/
-char *http_reply_gettype(char *path){
+char *http_reply_gettype(char *path, script_type *script){
 
     char *content_type;
     int i, extension = -1;
@@ -184,6 +212,9 @@ char *http_reply_gettype(char *path){
         free(content_type);
         return NULL;
     }
+
+    /*Por defecto no es script*/
+    *script = NONE;
  
     /*Apuntamos al inicio de la extension*/
     i = extension;
@@ -203,6 +234,12 @@ char *http_reply_gettype(char *path){
         strcpy(content_type, "application/msword");
     } else if (!strcmp(&path[i+1],"pdf")){
         strcpy(content_type, "application/pdf");
+    } else if (!strcmp(&path[i+1],"py")){
+        strcpy(content_type, "text/plain");
+        *script = PYTHON3;
+    } else if (!strcmp(&path[i+1],"php")){
+        strcpy(content_type, "text/plain");
+        *script = PHP;
     } else {
         free(content_type);
         return NULL;
@@ -328,4 +365,140 @@ int http_send_file(int socket_fd, char *path){
     }
     fclose(f);
     return total;
+}
+
+/****
+* FUNCIÓN: exec_script(char *path, script_type script)
+* DESCRIPCIÓN: Ejecuta un script y devuelve la respuesta.
+* ARGS_IN: char *path: Ruta del recurso.
+*          script_type script: Tipo del script (interprete a usar).
+* ARGS_OUT: Salida del script (reserva memoria), o bien NULL en caso de error
+*           o timeout.
+****/
+char *exec_script(char *path, script_type script){
+    pid_t pid = 0;
+    /*Pipe del que escribiremos*/
+    int wpipe[2];
+    /*Pipe del que leeremos*/
+    int rpipe[2];
+    int end = 0; /*1 si acaba bien, 2 si acaba por error*/
+    int nread, total_read = 0;
+    char interpreter[128] = "";
+    char *buffer = NULL, *pointer = NULL;
+    fd_set set;
+    struct timeval tv;
+    
+    /*Elaboramos el comando*/
+    switch (script){
+        case PHP:
+            strcat(interpreter, "php");
+            break;
+        case PYTHON3:
+            strcat(interpreter, "python3");
+            break;
+        default:
+            return NULL;
+    }
+    
+    /*Abrimos las tuberias*/
+    if(pipe(wpipe) == -1 || pipe(rpipe) == -1) return NULL;
+
+    /*Creamos un proceso*/
+    pid = fork();
+
+    if(pid < 0){
+        return NULL;
+    }
+    
+    /*Codigo del hijo*/
+    if(pid == 0){
+        
+        /*Enlazamos los descriptores estandar a los pipes*/
+        dup2(wpipe[0], STDIN_FILENO);
+        dup2(rpipe[1], STDOUT_FILENO);
+        dup2(rpipe[1], STDERR_FILENO);
+
+        /*Si el server se cierra, se mandara un SIGTERM al script para que no quede suelto*/
+        /*En principio un cierre normal del server esperara a que este hilo acabe, pero*/
+        /*si el server se cierra bruscamente con SIGKILL desde fuera podria pasar.*/
+        prctl(PR_SET_PDEATHSIG, SIGTERM);
+        
+        /*Se lanza el proceso*/
+        execlp(interpreter, interpreter, path, (char *) NULL);
+        /*Si falla el exec salimos*/
+        exit(EXIT_FAILURE);
+    }
+
+    /*Codigo principal (padre)*/
+    close(wpipe[0]);
+    close(rpipe[1]);
+
+    /*Reservamos el buffer. Uno mas del tamano maximo para poner un byte 0 al final si hace falta.*/
+    buffer = (char *) malloc((MAX_SCRIPT_OUTPUT+1) * sizeof(char));
+    if(!buffer){
+        end = 2;
+    }
+
+    /*Enviamos los parametros de entrada, si los hubiese*/
+    if(!end){
+        /*TODO*/
+    }
+
+    /*Leemos los datos de salida*/
+    while (!end){
+        /*Ajustamos el descriptor de lectura en el conjunto set*/
+        FD_ZERO(&set);
+        FD_SET(rpipe[0], &set);
+        /*Select espera con timeout*/
+        tv.tv_sec = SCRIPT_TIMEOUT;
+        tv.tv_usec = 0;
+        if(select(FD_SETSIZE, &set, NULL, NULL, &tv) < 0){
+            end = 2;
+            break;
+        }
+        
+        /*Comprobamos si han escrito tras el retorno de select*/
+        if(!FD_ISSET(rpipe[0], &set)){
+            end = 2;
+            break;
+        }
+
+        /*Leemos datos.*/
+        nread = read(rpipe[0], buffer+total_read, MAX_SCRIPT_OUTPUT-total_read);
+        if(nread < 0){
+            end = 2;
+            break;
+        }
+
+        total_read += nread;
+
+        /*Miramos si hay un \r\n*/
+        pointer = strstr(buffer, "\r\n");
+        if(pointer != NULL){
+            /*La cadena finaliza tras el \r\n, es decir, 2 bytes tras pointer*/
+            pointer[2] = 0;
+            end = 1;
+            break;
+        }
+
+        /*Miramos si se lleno el buffer*/
+        if(total_read >= MAX_SCRIPT_OUTPUT){
+            end = 2;
+        }
+
+    }
+
+    /*Terminamos el proceso del script*/
+    kill(pid, SIGKILL);
+    waitpid(pid, NULL, 0);
+
+    close(rpipe[0]);
+    close(wpipe[1]);
+
+    if(end == 2){
+        strcpy(buffer, "Server Timed Out While Executing Script\r\n");
+        return buffer;
+    }
+
+    return buffer;
 }
