@@ -16,6 +16,9 @@
 #define DEFAULT_SERVER_ROOT "htmlfiles/"
 #define DEFAULT_SERVER_SIGNATURE "ServerRedes"
 #define DEFAULT_DAEMON_MODE 1
+#define DEFAULT_LISTEN_QUEUE 5 /*!<Cola de espera para conexiones no aceptadas*/
+#define DEFAULT_READ_TIMEOUT 10 /*!<Temporizador para operaciones de lectura*/
+
 
 typedef struct _config_t config_t;
 
@@ -37,7 +40,7 @@ config_t* ini_config_file();
 void free_config_file(config_t* config);
 
 /*
-*FUNCIÓN: long int get_config_file_port(config_t* config){
+*FUNCIÓN: long int get_config_file_port(config_t* config)
 *ARGS_IN: config_t*: Estructura config de la que extraemos el puerto
 *DESCRIPCION: Devuelve el puerto que usa el servidor
 *ARGS_OUT: long int: El puerto que usa el servidor
@@ -45,7 +48,7 @@ void free_config_file(config_t* config);
 long int get_config_file_port(config_t* config);
 
 /*
-*FUNCIÓN: long int get_config_file_max_clients(config_t* config){
+*FUNCIÓN: long int get_config_file_max_clients(config_t* config)
 *ARGS_IN: config_t*: Estructura config de la que extraemos el máximo de clientes
 *DESCRIPCION: Devuelve el numero maximo de clientes que acepta el servidor
 *ARGS_OUT: long int: El numero maximo de clientes
@@ -53,7 +56,7 @@ long int get_config_file_port(config_t* config);
 long int get_config_file_maxClients(config_t* config);
 
 /*
-*FUNCIÓN: char* get_config_file_serverRoot(config_t* config){
+*FUNCIÓN: char* get_config_file_serverRoot(config_t* config)
 *ARGS_IN: config_t*: Estructura config de la que extraemos el server_root
 *DESCRIPCION: Devuelve el directorio root del servidor
 *ARGS_OUT: char* : El directorio root del servidor
@@ -61,7 +64,7 @@ long int get_config_file_maxClients(config_t* config);
 char* get_config_file_serverRoot(config_t* config);
 
 /*
-*FUNCIÓN: char* get_config_file_serverSignature(config_t* config){
+*FUNCIÓN: char* get_config_file_serverSignature(config_t* config)
 *ARGS_IN: config_t*: Estructura config de la que extraemos el nombre del server
 *DESCRIPCION: Devuelve el nombre del servidor
 *ARGS_OUT: char* : El nombre del servidor
@@ -69,11 +72,29 @@ char* get_config_file_serverRoot(config_t* config);
 char* get_config_file_serverSignature(config_t* config);
 
 /*
-*FUNCIÓN: long int get_config_file_daemonMode(config_t* config){
+*FUNCIÓN: long int get_config_file_daemonMode(config_t* config)
 *ARGS_IN: config_t*: Estructura config de la que extraemos el valor.
 *DESCRIPCION: Devuelve 0 si no se ejecutara en demonio, otro valor si si.
 *ARGS_OUT: long int: Booleano que indica si es demonio.
 ****/
 long int get_config_file_daemonMode(config_t* config);
+
+/*
+*FUNCION: long int get_config_file_listenQueue(config_t* config)
+*ARGS_IN: config_t*: Estructura config de la que extraemos el valor listen_queue
+*DESCRIPCION: Devuelve el tamanio de la cola de espera para conexiones
+*no aceptadas
+*ARGS_OUT: char* : El tamaño de la listen queue
+****/
+long int get_config_file_listenQueue(config_t* config);
+
+/*
+*FUNCION: long int get_config_file_readTimeout(config_t* config)
+*ARGS_IN: config_t*: Estructura config de la que extraemos el timeout de lectura
+*DESCRIPCION: Devuelve el timeout para operaciones de lectura
+*ARGS_OUT: char* : El timeout para operaciones de lectura
+****/
+long int get_config_file_readTimeout(config_t* config);
+
 
 #endif

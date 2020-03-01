@@ -20,8 +20,6 @@
 #include "http_reply.h"
 #include "configFile.h"
  
-#define LISTEN_QUEUE 5 /*!<Cola de espera para conexiones no aceptadas*/
-#define READ_TIMEOUT 10 /*!<Temporizador para operaciones de lectura*/
 
 int end = 0; /*Indica el fin del programa*/
 config_t *config = NULL; /*Configuraciones*/
@@ -56,7 +54,7 @@ int thread_work(int server_fd){
    syslog(LOG_INFO, "ServerHTTP: Conexion establecida en puerto %d e IP %d\n", port, addr);
 
    /*Ajustamos un timer a las operaciones de lectura para evitar stalls del cliente*/
-   status = socket_set_read_timer(conn_fd, READ_TIMEOUT);
+   status = socket_set_read_timer(conn_fd, get_config_file_readTimeout(config));
    if(status == -1){
        syslog(LOG_ERR, "ServerHTTP: Error estableciendo timer del socket\n");
        return -1;
@@ -184,7 +182,7 @@ int main(int argc, char **argv){
    }
 
    /*Abrimos el servidor*/
-   server_fd = socket_server_init(NULL, get_config_file_port(config), LISTEN_QUEUE);
+   server_fd = socket_server_init(NULL, get_config_file_port(config), get_config_file_listenQueue(config));
    if(server_fd == -1){
        syslog(LOG_ERR, "ServerHTTP: Error inicializando server.\n");
        free_config_file(config);

@@ -22,6 +22,8 @@ struct _config_t{
     long int listen_port;
     char *server_signature;
     long int daemon_mode;
+    long int listen_queue;
+    long int read_timeout;
 };
 
 /****
@@ -48,6 +50,8 @@ config_t* ini_config_file(){
     strcpy(config->server_root, DEFAULT_SERVER_ROOT);
     config->server_signature = malloc(sizeof(char) * (strlen(DEFAULT_SERVER_SIGNATURE)+1));
     strcpy(config->server_signature, DEFAULT_SERVER_SIGNATURE);
+    config->listen_queue = DEFAULT_LISTEN_QUEUE;
+    config->read_timeout = DEFAULT_READ_TIMEOUT;
 
     cfg_opt_t opts[] = {
         CFG_SIMPLE_STR("server_root", &(config->server_root)),
@@ -55,6 +59,8 @@ config_t* ini_config_file(){
         CFG_SIMPLE_INT("max_clients", &config->max_clients),
         CFG_SIMPLE_INT("listen_port", &config->listen_port),
         CFG_SIMPLE_INT("daemon_mode", &config->daemon_mode),
+        CFG_SIMPLE_INT("listen_queue", &config->listen_queue),
+        CFG_SIMPLE_INT("read_timeout", &config->read_timeout),
         CFG_END()
 	};
 
@@ -102,7 +108,7 @@ void free_config_file(config_t* config){
 }
 
 /*
-*FUNCIÓN: long int get_config_file_port(config_t* config){
+*FUNCIÓN: long int get_config_file_port(config_t* config)
 *ARGS_IN: config_t*: Estructura config de la que extraemos el puerto
 *DESCRIPCION: Devuelve el puerto que usa el servidor
 *ARGS_OUT: long int: El puerto que usa el servidor
@@ -114,7 +120,7 @@ long int get_config_file_port(config_t* config){
 }
 
 /*
-*FUNCIÓN: long int get_config_file_max_clients(config_t* config){
+*FUNCIÓN: long int get_config_file_max_clients(config_t* config)
 *ARGS_IN: config_t*: Estructura config de la que extraemos el máximo de clientes
 *DESCRIPCION: Devuelve el numero maximo de clientes que acepta el servidor
 *ARGS_OUT: long int: El numero maximo de clientes
@@ -126,7 +132,7 @@ long int get_config_file_maxClients(config_t* config){
 }
 
 /*
-*FUNCIÓN: long int get_config_file_daemonMode(config_t* config){
+*FUNCIÓN: long int get_config_file_daemonMode(config_t* config)
 *ARGS_IN: config_t*: Estructura config de la que extraemos el valor.
 *DESCRIPCION: Devuelve 0 si no se ejecutara en demonio, otro valor si si.
 *ARGS_OUT: long int: Booleano que indica si es demonio.
@@ -138,7 +144,7 @@ long int get_config_file_daemonMode(config_t* config){
 }
 
 /*
-*FUNCIÓN: char* get_config_file_serverRoot(config_t* config){
+*FUNCIÓN: char* get_config_file_serverRoot(config_t* config)
 *ARGS_IN: config_t*: Estructura config de la que extraemos el server_root
 *DESCRIPCION: Devuelve el directorio root del servidor
 *ARGS_OUT: char* : El directorio root del servidor
@@ -150,7 +156,7 @@ char* get_config_file_serverRoot(config_t* config){
 }
 
 /*
-*FUNCIÓN: char* get_config_file_serverSignature(config_t* config){
+*FUNCIÓN: char* get_config_file_serverSignature(config_t* config)
 *ARGS_IN: config_t*: Estructura config de la que extraemos el nombre del server
 *DESCRIPCION: Devuelve el nombre del servidor
 *ARGS_OUT: char* : El nombre del servidor
@@ -159,4 +165,30 @@ char* get_config_file_serverSignature(config_t* config){
 
     if(config == NULL) return NULL;
     return config->server_signature; 
+}
+
+/*
+*FUNCION: long int get_config_file_listenQueue(config_t* config)
+*ARGS_IN: config_t*: Estructura config de la que extraemos el valor listen_queue
+*DESCRIPCION: Devuelve el tamanio de la cola de espera para conexiones
+*no aceptadas
+*ARGS_OUT: char* : El tamaño de la listen queue
+****/
+long int get_config_file_listenQueue(config_t* config){
+
+    if(config == NULL) return -1;
+    return config->listen_queue; 
+}
+
+
+/*
+*FUNCION: long int get_config_file_readTimeout(config_t* config)
+*ARGS_IN: config_t*: Estructura config de la que extraemos el timeout de lectura
+*DESCRIPCION: Devuelve el timeout para operaciones de lectura
+*ARGS_OUT: char* : El timeout para operaciones de lectura
+****/
+long int get_config_file_readTimeout(config_t* config){
+
+    if(config == NULL) return -1;
+    return config->read_timeout; 
 }

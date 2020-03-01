@@ -54,6 +54,16 @@ char *http_get_path(request_t *req);
 http_req_error http_get_error(request_t *req);
 
 /****
+*FUNCION: char *http_get_args(request_t *req)
+*ARGS_IN: request_t *req: Estructura request de la que se pide los argumentos.
+*DESCRIPCION: Devuelve los argumentos introducidos en la request.
+*ARGS_OUT: char* args:  String con los args.
+****/ 
+char *http_get_args(request_t *req);
+
+
+
+/****
 *FUNCION: http_req_connection_status http_get_error(request_t *req)
 *ARGS_IN: request_t *req: Estructura request de la que se pide
 *el errorType

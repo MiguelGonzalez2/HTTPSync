@@ -10,6 +10,7 @@
 struct _request_t{
     char *method;
     char *path;
+    char *args;
     http_req_error errorType;
     connectionStatus connection;
 };
@@ -23,9 +24,9 @@ struct _request_t{
 *la variable errorType de la estructura.
 ****/
 request_t* http_get_request(int socket_fd, char *web_dir){
-    int i, bytes,err,minor_version,strCompareRes,connFound = 0, web_dir_len;
+    int i, bytes,err,minor_version,strCompareRes,connFound = 0, web_dir_len, real_path_len, args_len;
     char *requestString;
-    const char *method, *path;
+    const char *method, *path, *args;
     size_t method_len, path_len,num_headers,prevbuflen = 0;
     struct phr_header headers[100];
 
@@ -47,6 +48,7 @@ request_t* http_get_request(int socket_fd, char *web_dir){
 
     request->method = NULL;
     request->path = NULL;
+    request->args = NULL;
     request->errorType = BadRequest;
     request->connection = Close;
 
@@ -111,16 +113,41 @@ request_t* http_get_request(int socket_fd, char *web_dir){
         web_dir_len--;
     }
 
-    /*Aniadimos el path y el metodo a la struct request*/
-    request->method = malloc(sizeof(char) * ((int)method_len + 1));
-    request->path = malloc(sizeof(char) * ((int)path_len + 1 + web_dir_len));
+    real_path_len = (int)path_len;
 
+    /*Aniadimos los args*/
+    if(strncmp(method,"GET",3) == 0){
+        args = strchr(path,'?');
+
+        if(args != NULL){
+            real_path_len = args - path;
+            args_len = (int)path_len - real_path_len - 1;
+
+            request->args = malloc(sizeof(char) * (args_len + 1));
+
+            strncpy(request->args , args + 1, args_len);
+            request->args[args_len] = '\0';
+        }
+
+    }else if(strncmp(method,"POST",4) == 0){
+        args =  headers[num_headers - 1].value + headers[num_headers - 1].value_len;
+
+        request->args = malloc(sizeof(char) * strlen(args) + 1);
+        strcpy(request->args , args);
+    }
+
+    /*Reservamos memoria para el metodo y el path de la struct request*/
+    request->method = malloc(sizeof(char) * ((int)method_len + 1));
+    request->path = malloc(sizeof(char) * ((int)real_path_len + 1 + web_dir_len));
+
+    /*Metemos en la struct request el metodo, el path y los argumentos*/
     strncpy(request->method, method, (int)method_len);
     request->method[method_len] = '\0';
 
     strncpy(request->path, web_dir, web_dir_len);
-    strncpy(request->path + web_dir_len, path, (int)path_len);
+    strncpy(request->path + web_dir_len, path, real_path_len);
     request->path[path_len + web_dir_len] = '\0';
+
  
     /*Reemplazamos el path '/' */
     strCompareRes = strcmp(request->path + web_dir_len, "/");
@@ -195,6 +222,21 @@ char *http_get_path(request_t *req){
 }
 
 /****
+*FUNCION: char *http_get_args(request_t *req)
+*ARGS_IN: request_t *req: Estructura request de la que se pide los argumentos.
+*DESCRIPCION: Devuelve los argumentos introducidos en la request.
+*ARGS_OUT: char* args:  String con los args.
+****/ 
+char *http_get_args(request_t *req){
+
+	if(req == NULL){
+		return NULL;
+	}
+
+    return req->args;
+}
+
+/****
 *FUNCION: http_req_error http_get_error(request_t *req);
 *ARGS_IN: request_t *req: Estructura request de la que se pide 
 *el errorType
@@ -247,6 +289,10 @@ void http_req_destroy(request_t *req){
 
     if(req->method != NULL){
         free(req->method);
+    }
+
+    if(req->args != NULL){
+        free(req->args);
     }
 
     free(req);
