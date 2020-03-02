@@ -29,6 +29,9 @@ struct _pool_thread{
 };
 
 void th_main(struct _thread_args *argumentos);
+void cleanup_handler(void *arg){
+    return;
+}
 
 /****
 *FUNCIÓN: pool_thread  *pool_th_ini(void *func, int num_threads)
@@ -80,7 +83,7 @@ pool_thread *pool_th_ini(task_function func, int num_threads, int server_fd){
             }
 
             for(i = 0; i < num_threads; i++){
-                if(pthread_create(&p_threads->tid[i], NULL, (void * (*)(void *))&th_main, p_threads->args) !=0){
+                if(pthread_create(&p_threads->tid[i], NULL, (void * (*)(void *))&th_main, p_threads->args) != 0){
                     syslog(LOG_ERR, "No se pudo iniciar uno de los threads");
                     error = 1;
                     break;
@@ -116,6 +119,10 @@ void th_main(struct _thread_args *argumentos){
 
     int status;
 
+    if(argumentos == NULL){
+        return;
+    }
+
     while(!(argumentos->stop)){
     	if(!(argumentos->stop)){
         	pthread_mutex_lock(argumentos->shared_mutex);
@@ -144,10 +151,23 @@ void th_main(struct _thread_args *argumentos){
 *ARGS_OUT: none
 ****/
 void pool_th_destroy(pool_thread *p_threads){
-    pthread_mutex_destroy(p_threads->args->shared_mutex);
-    free(p_threads->args->shared_mutex);
-    free(p_threads->tid);
-    free(p_threads->args);
+    
+    if(p_threads == NULL){
+        return;
+    }
+    
+    if(p_threads->args != NULL){
+        if(p_threads->args->shared_mutex != NULL){
+            free(p_threads->args->shared_mutex);
+        }
+
+        free(p_threads->args);
+    }
+    
+    if(p_threads->tid != NULL){
+        free(p_threads->tid);
+    }
+
     free(p_threads);
 }
 
@@ -159,12 +179,21 @@ void pool_th_destroy(pool_thread *p_threads){
 ****/
 void pool_th_stop(pool_thread *p_threads){
     int i;
+
+    if(p_threads == NULL){
+        return;
+    }
+
     p_threads->args->stop = 1;
 
-    /*Sacar a los threads de bloqueos*/
+    /*Cancelar los hilos*/
     for(i = 0; i < p_threads->num_threads; i++){
-        pthread_kill(p_threads->tid[i], SIGINT);
+        pthread_cancel(p_threads->tid[i]);
     }
+
+    /*Limpiar*/
+    pthread_cleanup_push(cleanup_handler, NULL);
+    pthread_cleanup_pop(NULL);
 }
 
 /****
@@ -176,7 +205,26 @@ void pool_th_stop(pool_thread *p_threads){
 void pool_th_wait(pool_thread *p_threads){
     int i;
 
+    if(p_threads == NULL){
+        return;
+    }
+
     for(i = 0; i < p_threads->num_threads; i++){
         pthread_join(p_threads->tid[i], NULL);
+    }
+    return;
+}
+
+/****
+*FUNCIÓN: void pool_th_cancel_state(int disable)
+*ARGS_IN: int disable: Poner a 1 para deshabilitar la cancelacion del hilo, 0 para habilitarla.
+*DESCRIPCION: Deshabilita la cancelacion de los hilos.
+*ARGS_OUT: none
+****/
+void pool_th_cancel_state(int disable){
+    if(disable){
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE,NULL);
+    }else{
+        pthread_setcancelstate(PTHREAD_CANCEL_ENABLE,NULL);
     }
 }

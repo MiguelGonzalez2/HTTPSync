@@ -16,13 +16,17 @@
 #include "daemon.h"
 #include "libPoolThreads.h"
 #include "libsocket.h"
+#include "http_request.h"
+#include "http_reply.h"
+#include "configFile.h"
  
-#define HTTP_SERVER_PORT 8080 /*!<Puerto para el server*/
-#define LISTEN_QUEUE 5 /*!<Cola de espera para conexiones no aceptadas*/
-#define THREAD_NO 20 /*!<Numero de hilos*/
+
+int end = 0; /*Indica el fin del programa*/
+config_t *config = NULL; /*Configuraciones*/
 
 /*Manejador para señal*/
-void end_handler(int sig){  
+void end_handler(int sig){
+    end = 1;  
 }
 
 /****
@@ -33,13 +37,15 @@ void end_handler(int sig){
 ****/
 int thread_work(int server_fd){
 
-   int conn_fd, port, addr;
-   /*DECLARACIONES DEL CODIGO TEMPORAL*/
-   char buffer[8192] = "HTTP/1.1 200 OK\r\nContent-Length: 44\r\nConnection: close\r\nContent-Type: text/html\r\n\r\n<html><body><h1>It works!</h1></body></html>\r\n";
-   /*FIN DECLARACIONES DEL CODIGO TEMPORAL*/
+   int conn_fd, port, addr, status;
+   request_t *req;
+   connectionStatus cstatus = Open;
+   connectionStatus replyStatus;
 
    syslog(LOG_INFO, "ServerHTTP: Hilo esperando conexiones.\n");
+   pool_th_cancel_state(0);
    conn_fd = socket_accept(server_fd, &port, &addr);
+   pool_th_cancel_state(1);
    if(conn_fd == -1){
       /*Solo consideramos que ha sido fallo si no fue por EINTR*/
       return (errno == EINTR);
@@ -47,14 +53,37 @@ int thread_work(int server_fd){
 
    syslog(LOG_INFO, "ServerHTTP: Conexion establecida en puerto %d e IP %d\n", port, addr);
 
-   /*TODO: CAMBIAR ESTA PIEZA DE CODIGO POR UNA LLAMADA A LIBRERIA HTTP*/
-   /*PARA PROBAR; SE MANDARA UN FICHERO PREDEFINIDO*/
-   if(socket_send(conn_fd, buffer, strlen(buffer)) == -1){
-	socket_close(conn_fd);
-	return -1;
-				}
-  /*FIN DEL CODIGO TEMPORAL*/
-
+   /*Ajustamos un timer a las operaciones de lectura para evitar stalls del cliente*/
+   status = socket_set_read_timer(conn_fd, get_config_file_readTimeout(config));
+   if(status == -1){
+       syslog(LOG_ERR, "ServerHTTP: Error estableciendo timer del socket\n");
+       return -1;
+   } 
+   while(cstatus == Open && !end){ 
+        req = http_get_request(conn_fd, get_config_file_serverRoot(config)); 
+        if(req != NULL){ 
+            syslog(LOG_INFO,"ServerHTTP: Request caught. Method %s. Path %s. Errorcode %d\n",     http_get_method(req),http_get_path(req),http_get_error(req));
+            syslog(LOG_INFO,"ServerHTTP: Sending reply\n");
+            cstatus = http_get_connection_status(req);
+            replyStatus = (end) ? Close : Open;
+	    status = http_reply_send(conn_fd, req, replyStatus, get_config_file_serverSignature(config));
+            syslog(LOG_INFO,"ServerHTTP: %d Bytes of Reply Sent\n", status);
+            http_req_destroy(req);
+        } else {
+            /*Salta el timer*/
+            if(errno == EAGAIN || errno == EWOULDBLOCK){
+                syslog(LOG_INFO, "ServerHTTP: Closing socket on client timeout.");
+                /*Enviamos un 408 Request Timeout*/
+                cstatus = TimedOut;
+                http_reply_send(conn_fd, NULL, cstatus, get_config_file_serverSignature(config));
+            }
+            if(!end && errno != EINTR){
+                syslog(LOG_ERR,"ServerHTTP: Error getting request\n");
+                cstatus = Close;
+            }
+        }
+   }
+ 
   socket_close(conn_fd);  
   syslog(LOG_INFO, "ServerHTTP: Cerrando la conexion en puerto %d e IP %d\n", port, addr);
   return 0; 
@@ -63,7 +92,7 @@ int thread_work(int server_fd){
 /****
 *FUNCIÓN: int end_handler_signal(int signum)
 *ARGS_IN: int signum: Señal que marcara el fin del programa.
-*DESCRIPCION: Permite sobreescribir la accicon de una señal por un nop.
+*DESCRIPCION: Permite sobreescribir la accion de una señal por un nop.
 *ARGS_OUT: int - 0 si exito, -1 si fallo.
 ****/
 int end_handler_signal(int signum){
@@ -77,6 +106,38 @@ int end_handler_signal(int signum){
 }
 
 /****
+*FUNCIÓN: void initialize_mask(int signal)
+*ARGS_IN: int signal: Senal a enmascarar
+*         int *ret: Se pondra a 0 si fue bien o -1 si fallo.
+*ARGS_OUT: sigset_t: Mascara antigua, o mascara vacia si falla.
+*DESCRIPCION: Inicializa una mascara con la señal pasada, o vacia si
+* se pasa un -1.
+****/
+sigset_t initialize_mask(int signal, int *ret){
+    sigset_t set;
+    sigset_t old;
+    int status;
+    
+    sigemptyset(&set);
+    if(signal != -1){
+        sigaddset(&set, signal);
+    }
+
+    status = pthread_sigmask(SIG_SETMASK, &set, &old);
+
+    if(ret != NULL){
+        *ret = status;
+    }
+
+    if(status == 0){
+        return old;
+    }
+    
+    sigemptyset(&old);
+    return old;
+}
+
+/****
 *FUNCIÓN: int main(int argc, char **argv)
 *ARGS_IN: int argc: Numero de parametros de entrada
           char **argv: Parametros de entrada
@@ -86,12 +147,24 @@ int end_handler_signal(int signum){
 ****/
 int main(int argc, char **argv){
    int server_fd;
+   int status;
+   sigset_t old;
    pool_thread *pool;
 
-   /*DAEMON*/ 
-   if(daemonProcess() != EXIT_SUCCESS){
-       syslog(LOG_ERR, "ServerHTTP: Error creando daemon.\n");
+   /*Parseo del fichero de configuracion*/
+   config = ini_config_file();
+   if(config == NULL){
+       syslog(LOG_ERR, "Error al parsear el fichero de configuracion");
        return EXIT_FAILURE;
+   }
+
+   /*DAEMON*/
+   if(get_config_file_daemonMode(config)){ 
+       if(daemonProcess() != EXIT_SUCCESS){
+           syslog(LOG_ERR, "ServerHTTP: Error creando daemon.\n");
+           free_config_file(config);
+           return EXIT_FAILURE;
+       }
    }
    
    /*Ignoramos SIGINT, es la que cerrara de manera limpia el server*/
@@ -100,23 +173,35 @@ int main(int argc, char **argv){
        return EXIT_FAILURE;
    }
 
+   /*Enmascaramos SIGINT*/
+   old = initialize_mask(SIGINT, &status);
+   if(status == -1){
+       syslog(LOG_ERR, "ServerHTTP: Error enmascarando senales.\n");
+       free_config_file(config);
+       return EXIT_FAILURE;
+   }
+
    /*Abrimos el servidor*/
-   server_fd = socket_server_init(NULL, HTTP_SERVER_PORT, LISTEN_QUEUE);
+   server_fd = socket_server_init(NULL, get_config_file_port(config), get_config_file_listenQueue(config));
    if(server_fd == -1){
        syslog(LOG_ERR, "ServerHTTP: Error inicializando server.\n");
+       free_config_file(config);
        return EXIT_FAILURE;
    }
 
    /*Inicializamos el trabajo*/
-   pool = pool_th_ini(&thread_work, THREAD_NO, server_fd);
+   pool = pool_th_ini(&thread_work, get_config_file_maxClients(config), server_fd);
    if(pool == NULL){
        syslog(LOG_ERR, "ServerHTTP: Error inicializando pool de hilos.\n");
+       free_config_file(config);
        socket_close(server_fd);
        return EXIT_FAILURE;
    }
 
+   syslog(LOG_INFO, "ServerHTTP: Servidor operativo.\n");
+
    /*A la espera de una señal de cierre*/
-   pause();
+   sigsuspend(&old);
 
    syslog(LOG_INFO, "ServerHTTP: Inicio de cierre del servidor.\n");
 
@@ -130,6 +215,9 @@ int main(int argc, char **argv){
    pool_th_destroy(pool);
    /*Cerramos el socket*/ 
    socket_close(server_fd);
+
+   /*Liberamos la struct con el config file parseado*/
+   free_config_file(config);
 
    syslog(LOG_INFO, "ServerHTTP: Cierre del servidor con exito\n");
    
