@@ -77,7 +77,7 @@ int thread_work(int server_fd){
                 cstatus = TimedOut;
                 http_reply_send(conn_fd, NULL, cstatus, get_config_file_serverSignature(config));
             }
-            if(!end){
+            if(!end && errno != EINTR){
                 syslog(LOG_ERR,"ServerHTTP: Error getting request\n");
                 cstatus = Close;
             }

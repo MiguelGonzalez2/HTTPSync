@@ -25,9 +25,9 @@ struct _request_t{
 ****/
 request_t* http_get_request(int socket_fd, char *web_dir){
     int i, bytes,err,minor_version,strCompareRes,connFound = 0, web_dir_len, real_path_len, args_len;
-    char *requestString;
-    const char *method, *path, *args;
-    size_t method_len, path_len,num_headers,prevbuflen = 0;
+    char *requestString=NULL;
+    const char *method=NULL, *path=NULL, *args=NULL;
+    size_t method_len=0, path_len=0,num_headers=0,prevbuflen = 0;
     struct phr_header headers[100];
 
     request_t *request = NULL;
@@ -52,13 +52,17 @@ request_t* http_get_request(int socket_fd, char *web_dir){
     request->errorType = BadRequest;
     request->connection = Close;
 
-    /*Reservamos memoria para el buffer que contiene la request*/   
-    requestString = malloc(sizeof(char) * MAX_REQUEST_LENGTH);
+    /*Reservamos memoria para el buffer que contiene la request.*/
+    /*Reservamos uno mas de lo necesario para asegurar que siempre acaba en 0*/   
+    requestString = malloc(sizeof(char) * (MAX_REQUEST_LENGTH+1));
     if(requestString == NULL){
         free(request);
         syslog(LOG_ERR,"Error al reservar memoria para una cadena de caracteres.");
         return NULL;
     }
+
+    /*Inicializamos la cadena*/
+    memset(requestString, 0, MAX_REQUEST_LENGTH);
 
     /*Obtenemos la request*/   
     bytes = socket_receive(socket_fd, requestString, MAX_REQUEST_LENGTH);
@@ -115,11 +119,13 @@ request_t* http_get_request(int socket_fd, char *web_dir){
 
     real_path_len = (int)path_len;
 
+    /*Encontramos donde esta el ? del path. Buscamos como mucho hasta que se acabe el path (espacio)*/
+    for(args = path; *args != ' ' && *args != '?' && *args != 0;args++);
+
     /*Aniadimos los args*/
     if(strncmp(method,"GET",3) == 0){
-        args = strchr(path,'?');
-
-        if(args != NULL){
+        /*Habia parametros*/
+        if(*args == '?'){
             real_path_len = args - path;
             args_len = (int)path_len - real_path_len - 1;
 
@@ -130,10 +136,18 @@ request_t* http_get_request(int socket_fd, char *web_dir){
         }
 
     }else if(strncmp(method,"POST",4) == 0){
-        args =  headers[num_headers - 1].value + headers[num_headers - 1].value_len;
+        /*Eliminamos del path lo que haya tras un '?', aunque no lo almacenemos*/
+        if(*args == '?') real_path_len = args - path;
 
-        request->args = malloc(sizeof(char) * strlen(args) + 1);
-        strcpy(request->args , args);
+        /*value apunta al comienzo del valor del ultimo header. Nos movemos hasta el final sumando*/
+        /*lo que ocupa dicho header, y despues sumamos 4 dado que hay 2 \r\n a continuacion.*/
+        args =  headers[num_headers - 1].value + headers[num_headers - 1].value_len + 4;
+
+        /*Procesamos solo si habia argumentos*/
+        if(*args != 0){
+            request->args = malloc(sizeof(char) * (strlen(args) + 1));
+            strcpy(request->args , args);
+        }
     }
 
     /*Reservamos memoria para el metodo y el path de la struct request*/
@@ -146,7 +160,7 @@ request_t* http_get_request(int socket_fd, char *web_dir){
 
     strncpy(request->path, web_dir, web_dir_len);
     strncpy(request->path + web_dir_len, path, real_path_len);
-    request->path[path_len + web_dir_len] = '\0';
+    request->path[real_path_len + web_dir_len] = '\0';
 
  
     /*Reemplazamos el path '/' */

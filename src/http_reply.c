@@ -29,7 +29,7 @@ int http_file_size(char *path);
 int http_file_exists(char *path);
 char *http_reply_get_last_modified(char *path);
 char *http_reply_getdate();
-char *exec_script(char *path, script_type script);
+char *exec_script(char *path, script_type script, char *input);
 
 /****
 * FUNCIÓN: int http_reply_send(int conn_fd, request_t *req)
@@ -47,8 +47,7 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
     
     /*Cabecera del mensaje HTTP*/
     char header[2048]; 
-    char *path=NULL;
-    char *method = NULL;
+    char *path=NULL, *method = NULL, *args = NULL;
     char *buffer = NULL, *content_length = NULL;
     http_req_error err = BadRequest;
     script_type script = NONE;
@@ -65,6 +64,7 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
         err = http_get_error(req);
         method = http_get_method(req);
         path = http_get_path(req);
+        args = http_get_args(req);
     }
 
     if(err == OK){
@@ -73,7 +73,10 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
 
     /*Codigos de estados*/
     if(err == OK){
-        if(options || http_file_exists(path)){
+        if(strcmp(method, "GET") && strcmp(method, "POST") && strcmp(method, "OPTIONS")){
+            strcat(header, "501 Not Implemented\r\n");
+            err = BadRequest;
+        } else if(options || http_file_exists(path)){
             strcat(header, "200 OK\r\n");
         } else {
             strcat(header, "404 Not Found\r\n");
@@ -128,7 +131,8 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
 		}
         /*Si es un script calculamos el tamano y dejamos el resultado en buffer*/
         } else if (script != NONE){
-               buffer = exec_script(path, script);
+               /*Ejecucion del script*/
+               buffer = exec_script(path, script,args);
                if(buffer == NULL){
                    strcat(header, "Content-Length: 0\r\n");
                } else {
@@ -372,16 +376,16 @@ int http_send_file(int socket_fd, char *path){
 * DESCRIPCIÓN: Ejecuta un script y devuelve la respuesta.
 * ARGS_IN: char *path: Ruta del recurso.
 *          script_type script: Tipo del script (interprete a usar).
-* ARGS_OUT: Salida del script (reserva memoria), o bien NULL en caso de error
-*           o timeout.
+*          char *input: Bytes that will be transferred to the script's standard input after launching.
+* ARGS_OUT: Salida del script (reserva memoria), o bien NULL en caso de error.
 ****/
-char *exec_script(char *path, script_type script){
+char *exec_script(char *path, script_type script, char *input){
     pid_t pid = 0;
     /*Pipe del que escribiremos*/
     int wpipe[2];
     /*Pipe del que leeremos*/
     int rpipe[2];
-    int end = 0; /*1 si acaba bien, 2 si acaba por error*/
+    int end = 0;
     int nread, total_read = 0;
     char interpreter[128] = "";
     char *buffer = NULL, *pointer = NULL;
@@ -413,6 +417,9 @@ char *exec_script(char *path, script_type script){
     /*Codigo del hijo*/
     if(pid == 0){
         
+        close(wpipe[1]);
+        close(rpipe[0]);
+
         /*Enlazamos los descriptores estandar a los pipes*/
         dup2(wpipe[0], STDIN_FILENO);
         dup2(rpipe[1], STDOUT_FILENO);
@@ -435,14 +442,23 @@ char *exec_script(char *path, script_type script){
 
     /*Reservamos el buffer. Uno mas del tamano maximo para poner un byte 0 al final si hace falta.*/
     buffer = (char *) malloc((MAX_SCRIPT_OUTPUT+1) * sizeof(char));
-    if(!buffer){
-        end = 2;
+    if(buffer==NULL){
+        end = 1;
     }
 
+    /*Inicializamos la cadena*/
+    memset(buffer, 0, MAX_SCRIPT_OUTPUT+1);
+
     /*Enviamos los parametros de entrada, si los hubiese*/
-    if(!end){
-        /*TODO*/
+    if(!end && input != NULL){
+        /*Escribimos la cadena de entrada*/
+        if(write(wpipe[1], input, strlen(input)) < 0){
+            end = 1;
+            strcpy(buffer, "Error while sending parameters to script.\r\n");
+        }    
     }
+
+    close(wpipe[1]); 
 
     /*Leemos los datos de salida*/
     while (!end){
@@ -453,20 +469,23 @@ char *exec_script(char *path, script_type script){
         tv.tv_sec = SCRIPT_TIMEOUT;
         tv.tv_usec = 0;
         if(select(FD_SETSIZE, &set, NULL, NULL, &tv) < 0){
-            end = 2;
+            end = 1;
+            strcpy(buffer, "Internal server error while running script.\r\n");
             break;
         }
         
         /*Comprobamos si han escrito tras el retorno de select*/
         if(!FD_ISSET(rpipe[0], &set)){
-            end = 2;
+            end = 1;
+            strcpy(buffer, "Script output timed out.\r\n");
             break;
         }
 
         /*Leemos datos.*/
         nread = read(rpipe[0], buffer+total_read, MAX_SCRIPT_OUTPUT-total_read);
         if(nread < 0){
-            end = 2;
+            end = 1;
+            strcpy(buffer, "Internal server error while running script.\r\n");
             break;
         }
 
@@ -483,7 +502,8 @@ char *exec_script(char *path, script_type script){
 
         /*Miramos si se lleno el buffer*/
         if(total_read >= MAX_SCRIPT_OUTPUT){
-            end = 2;
+            end = 1;
+            strcpy(buffer, "Script output too large to process.\r\n");
         }
 
     }
@@ -493,12 +513,6 @@ char *exec_script(char *path, script_type script){
     waitpid(pid, NULL, 0);
 
     close(rpipe[0]);
-    close(wpipe[1]);
-
-    if(end == 2){
-        strcpy(buffer, "Server Timed Out While Executing Script\r\n");
-        return buffer;
-    }
 
     return buffer;
 }
