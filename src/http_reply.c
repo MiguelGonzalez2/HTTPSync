@@ -438,7 +438,6 @@ char *exec_script(char *path, script_type script, char *input){
 
     /*Codigo principal (padre)*/
     close(wpipe[0]);
-    close(rpipe[1]);
 
     /*Reservamos el buffer. Uno mas del tamano maximo para poner un byte 0 al final si hace falta.*/
     buffer = (char *) malloc((MAX_SCRIPT_OUTPUT+1) * sizeof(char));
@@ -485,7 +484,7 @@ char *exec_script(char *path, script_type script, char *input){
         nread = read(rpipe[0], buffer+total_read, MAX_SCRIPT_OUTPUT-total_read);
         if(nread < 0){
             end = 1;
-            strcpy(buffer, "Internal server error while running script.\r\n");
+            strcpy(buffer, "Internal server error while executing script.\r\n");
             break;
         }
 
@@ -512,6 +511,7 @@ char *exec_script(char *path, script_type script, char *input){
     kill(pid, SIGKILL);
     waitpid(pid, NULL, 0);
 
+    close(rpipe[1]);
     close(rpipe[0]);
 
     return buffer;
