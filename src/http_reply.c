@@ -224,7 +224,7 @@ char *http_reply_gettype(char *path, script_type *script){
     i = extension;
 
     /*Decidimos el tipo*/
-    if(!strcmp(&path[+1],"txt")){
+    if(!strcmp(&path[i+1],"txt")){
         strcpy(content_type, "text/plain");
     } else if(!strcmp(&path[i+1],"html") || !strcmp(&path[i+1],"htm")){
         strcpy(content_type, "text/html");
