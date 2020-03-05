@@ -53,8 +53,9 @@ request_t* http_get_request(int socket_fd, char *web_dir){
     request->connection = Close;
 
     /*Reservamos memoria para el buffer que contiene la request.*/
-    /*Reservamos uno mas de lo necesario para asegurar que siempre acaba en 0*/   
-    requestString = malloc(sizeof(char) * (MAX_REQUEST_LENGTH+1));
+    /*Reservamos 4 mas de lo necesario porque posteriormente moveremos
+      un puntero que podria salirse si se llena este buffer*/   
+    requestString = malloc(sizeof(char) * (MAX_REQUEST_LENGTH+4));
     if(requestString == NULL){
         free(request);
         syslog(LOG_ERR,"Error al reservar memoria para una cadena de caracteres.");
@@ -62,7 +63,7 @@ request_t* http_get_request(int socket_fd, char *web_dir){
     }
 
     /*Inicializamos la cadena*/
-    memset(requestString, 0, MAX_REQUEST_LENGTH);
+    memset(requestString, 0, MAX_REQUEST_LENGTH+4);
 
     /*Obtenemos la request*/   
     bytes = socket_receive(socket_fd, requestString, MAX_REQUEST_LENGTH);

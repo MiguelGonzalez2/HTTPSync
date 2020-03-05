@@ -284,6 +284,64 @@ char *http_reply_getdate(){
 }
 
 /****
+* FUNCIÓN: time_t http_date_to_int(char *date)
+* DESCRIPCIÓN: Convierte una cadena de fecha en formato HTTP a un entero time_t
+* ARGS_IN; char* date: Comienzo de la cadena en formato HTTP. 
+*                      La cadena debe constar exclusivamente del texto de la fecha,
+*                      NO debe tener caracteres adicionales (\r\n, etc). DEBE haber
+*                      un byte nulo que indique el final de la cadena.
+*                      Ejemplo: "Tue, 15 Nov 1994 08:12:31 GMT"
+* ARGS_OUT: time_t: Valor numerico time_t que representa la fecha.
+****/
+time_t http_date_to_int(char *date){
+    time_t time1, time2, auxt;
+    struct tm *tm,*aux;
+    char month[10];
+
+    /*Apuntamos a la estructura*/ 
+    time1 = 0;
+    tm = gmtime(&time1);
+
+    /*Cargamos la info de la cadena*/
+    sscanf(date,  "%*c%*c%*c, %2d %s %d %2d:%2d:%2d %*s", &tm->tm_mday,month,&tm->tm_year,&tm->tm_hour,&tm->tm_min,&tm->tm_sec);
+
+    /*No hay mas remedio que parsear el mes*/
+    if(!strcmp(month,"Jan")) tm->tm_mon = 0;
+    else if(!strcmp(month,"Feb")) tm->tm_mon = 1;
+    else if(!strcmp(month,"Mar")) tm->tm_mon = 2;
+    else if(!strcmp(month,"Apr")) tm->tm_mon = 3;
+    else if(!strcmp(month,"May")) tm->tm_mon = 4;
+    else if(!strcmp(month,"Jun")) tm->tm_mon = 5;
+    else if(!strcmp(month,"Jul")) tm->tm_mon = 6;
+    else if(!strcmp(month,"Aug")) tm->tm_mon = 7;
+    else if(!strcmp(month,"Sep")) tm->tm_mon = 8;
+    else if(!strcmp(month,"Oct")) tm->tm_mon = 9;
+    else if(!strcmp(month,"Nov")) tm->tm_mon = 10;
+    else if(!strcmp(month,"Dec")) tm->tm_mon = 11;
+
+    /*Mas campos*/
+    tm->tm_year -= 1900;
+    tm->tm_isdst = 0;
+    tm->tm_yday = 0;
+    tm->tm_wday = 0;
+    time2 = mktime(tm);
+
+    /*Ahora time2 esta en zona local, hay que reconvertir*/
+
+    /*Calculo el offset a GMT usando un tiempo prefijado*/
+    time1 = time(0);
+    aux = gmtime(&time1);
+    auxt = mktime(aux);
+    aux = localtime(&time1);
+    time1 = difftime(auxt,mktime(aux));
+
+    /*Arreglamos ese offset*/
+    time2 -= time1;
+
+    return time2;
+}
+
+/****
 * FUNCIÓN: char *http_reply_get_last_modified(char *path)
 * DESCRIPCIÓN: Devuelve un char con el campo date que se debe copiar.
 * Viene ya con el \r\n.
