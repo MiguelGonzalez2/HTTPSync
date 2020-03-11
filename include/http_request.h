@@ -13,7 +13,7 @@
 #define DEFAULT_URI "/index.html" /*!<Objeto por defecto en la raiz*/
 typedef struct _request_t request_t;
 
-typedef enum {OK, BadRequest, RequestTooLong} http_req_error; 
+typedef enum {OK, BadRequest, RequestTooLong, NotModified} http_req_error; 
 typedef enum {Open, Close, TimedOut} connectionStatus;
 
 /****
@@ -81,5 +81,14 @@ connectionStatus http_get_connection_status(request_t *req);
 ****/
 void http_req_destroy(request_t *req);
 
-#endif
+/****
+*FUNCION: http_get_ifModifiedSince(request_t *req)
+*ARGS_IN: request_t *req: Estructura request de la que se pide
+*el ifModifiedSince
+*DESCRIPCION: Devuelve una string con la fecha de la última modificacion
+*de un recurso de la que tiene constancia el cliente
+*ARGS_OUT: char* : La fecha de la modificacion
+****/
+char* http_get_ifModifiedSince(request_t *req);
 
+#endif

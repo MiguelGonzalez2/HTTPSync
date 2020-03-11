@@ -30,6 +30,7 @@ int http_file_exists(char *path);
 char *http_reply_get_last_modified(char *path);
 char *http_reply_getdate();
 char *exec_script(char *path, script_type script, char *input);
+time_t http_date_to_int(char *date);
 
 /****
 * FUNCIÓN: int http_reply_send(int conn_fd, request_t *req)
@@ -47,7 +48,7 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
     
     /*Cabecera del mensaje HTTP*/
     char header[2048]; 
-    char *path=NULL, *method = NULL, *args = NULL;
+    char *path=NULL, *method = NULL, *args = NULL, *ifModifiedSince = NULL;
     char *buffer = NULL, *content_length = NULL;
     http_req_error err = BadRequest;
     script_type script = NONE;
@@ -65,10 +66,21 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
         method = http_get_method(req);
         path = http_get_path(req);
         args = http_get_args(req);
+        ifModifiedSince = http_get_ifModifiedSince(req);
     }
 
     if(err == OK){
         options = (!strcmp(method, "OPTIONS") && !strcmp(path, "*")) ? 1 : 0;
+    }
+
+    /*Comprobamos si no hace falta reenviar el recurso*/
+    if(path != NULL){
+        buffer = http_reply_get_last_modified(path);
+    }
+
+    if(ifModifiedSince != NULL && buffer != NULL && http_date_to_int(ifModifiedSince) > http_date_to_int(buffer)){
+        /*Quitamos OK del err*/
+        err = NotModified;
     }
 
     /*Codigos de estados*/
@@ -78,7 +90,7 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
             err = BadRequest;
         } else if(options || http_file_exists(path)){
             strcat(header, "200 OK\r\n");
-        } else {
+        }else {
             strcat(header, "404 Not Found\r\n");
             /*Quitamos OK del err*/
             err = BadRequest;
@@ -87,11 +99,17 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
         strcat(header, "408 Request Timeout\r\n");
     } else if(err == BadRequest){
         strcat(header, "400 Bad Request\r\n");
-    } else {
+    } else if(err == NotModified){
+            strcat(header, "304 Not Modified\r\n");
+
+    }else {
         strcat(header, "500 Internal Server Error\r\n");
     }
 
-    /*Anadimos Fecha*/
+    if(buffer != NULL){
+        free(buffer);
+    }
+
     buffer = http_reply_getdate();
     if(buffer != NULL){
 	    strcat(header, "Date: ");
@@ -108,9 +126,9 @@ int http_reply_send(int conn_fd, request_t *req, connectionStatus connection_clo
         /*Fecha de modificacion*/
         buffer = http_reply_get_last_modified(path);
         if(buffer != NULL){
-		strcat(header, "Last-Modified: ");
-		strcat(header, buffer);
-		free(buffer);
+		    strcat(header, "Last-Modified: ");
+		    strcat(header, buffer);
+		    free(buffer);
         }
         /*Tipo de contenido*/
         buffer = http_reply_gettype(path, &script);
@@ -354,7 +372,7 @@ char *http_reply_get_last_modified(char *path){
     struct tm *tm;
     struct stat attrib;
 
-    if(path == NULL){
+    if(path == NULL || !http_file_exists(path)){
         return NULL;
     }
 

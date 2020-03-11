@@ -11,6 +11,7 @@ struct _request_t{
     char *method;
     char *path;
     char *args;
+    char *ifModifiedSince;
     http_req_error errorType;
     connectionStatus connection;
 };
@@ -24,7 +25,7 @@ struct _request_t{
 *la variable errorType de la estructura.
 ****/
 request_t* http_get_request(int socket_fd, char *web_dir){
-    int i, bytes,err,minor_version,strCompareRes,connFound = 0, web_dir_len, real_path_len, args_len;
+    int i, bytes, err, minor_version, strCompareRes, connFound = 0, modifiedSinceFound = 0, web_dir_len, real_path_len, args_len;
     char *requestString=NULL;
     const char *method=NULL, *path=NULL, *args=NULL;
     size_t method_len=0, path_len=0,num_headers=0,prevbuflen = 0;
@@ -49,6 +50,7 @@ request_t* http_get_request(int socket_fd, char *web_dir){
     request->method = NULL;
     request->path = NULL;
     request->args = NULL;
+    request->ifModifiedSince = NULL;
     request->errorType = BadRequest;
     request->connection = Close;
 
@@ -181,16 +183,31 @@ request_t* http_get_request(int socket_fd, char *web_dir){
     request->connection = Open;
 
     /*Buscamos Connection: Close en los headers*/
-    for(i = 0; i < num_headers && !connFound; i++){
-        strCompareRes = strncmp(headers[i].name, "Connection", headers[i].name_len);
-        if(!strCompareRes){
-            strCompareRes = strncmp(headers[i].value, "close", headers[i].value_len);
-            if(!strCompareRes){
-                request->connection = Close;
-            }
+    for(i = 0; i < num_headers && (!connFound || !modifiedSinceFound); i++){
 
-            /*Si hemos encontrado el header con nombre Connection salimos*/
-            connFound = 1;
+        if(!connFound){
+            strCompareRes = strncmp(headers[i].name, "Connection", headers[i].name_len);
+            if(!strCompareRes){
+                strCompareRes = strncmp(headers[i].value, "close", headers[i].value_len);
+                if(!strCompareRes){
+                    request->connection = Close;
+                }
+
+                /*Si hemos encontrado el header con nombre Connection lo indicamos*/
+                connFound = 1;
+            }
+        }
+        
+        if(!modifiedSinceFound){
+            strCompareRes = strncmp(headers[i].name, "If-Modified-Since", headers[i].name_len);
+            if(!strCompareRes){
+                
+                request->ifModifiedSince = malloc(sizeof(char) * ((int)headers[i].value_len + 1));
+                strncpy(request->ifModifiedSince, headers[i].value, (int)headers[i].value_len+1);
+                request->ifModifiedSince[(int)headers[i].value_len] = '\0';
+                /*Si hemos encontrado el header con nombre If-Modified-Since lo indicamos*/
+                modifiedSinceFound = 1;
+            }
         }
     }
 
@@ -285,6 +302,22 @@ connectionStatus http_get_connection_status(request_t *req){
     return req->connection;
 }
 
+/****
+*FUNCION: http_get_ifModifiedSince(request_t *req)
+*ARGS_IN: request_t *req: Estructura request de la que se pide
+*el ifModifiedSince
+*DESCRIPCION: Devuelve una string con la fecha de la última modificacion
+*de un recurso de la que tiene constancia el cliente
+*ARGS_OUT: char* : La fecha de la modificacion
+****/
+char* http_get_ifModifiedSince(request_t *req){
+   
+    if(req == NULL){
+	    return NULL;
+    }
+
+    return req->ifModifiedSince;
+}
 
 /****
 *FUNCION: void http_req_destroy(request_t *req)
@@ -308,6 +341,10 @@ void http_req_destroy(request_t *req){
 
     if(req->args != NULL){
         free(req->args);
+    }
+
+    if(req->ifModifiedSince != NULL){
+        free(req->ifModifiedSince);
     }
 
     free(req);
