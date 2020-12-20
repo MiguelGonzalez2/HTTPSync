@@ -1,26 +1,30 @@
-# practica1
+# HTTPSync - A simple, fast web server in C.
 
-Primera práctica de la asignatura REDES II. Creación de un servidor web HTTP en el lenguaje C. 
-Autores: Alejandro Bravo de la Serna y Miguel González González.
+This project is a simple webserver written in C that supports simple HTTP features and CGI. It was developed as part of the Communication Networks II subject at college.
+Authors: [Alejandro Bravo de la Serna](https://github.com/zombor00) and [Miguel González González](https://github.com/MiguelGonzalez2).
 
-## Generación del ejecutable
+## Building the program
 
-El ejecutable consta de varios objetos y librerías cuyo código fuente se incluye en el repositorio. Para generar el ejecutable, basta con ejecutar el comando _make_ desde la raíz. Es necesario tener instalada la librería _confuse_ en el sistema, que corresponde al paquete _libconfuse-dev_. Se generará un ejecutable _server_ y los objetos y librerías se limpiarán posteriormente.
+To build the server's executable, just run _make_ from the project's root. Library _confuse_, which corresponds to package _libconfuse-dev_, needs to be installed. This will result in the file _server_.
 
-## Configuración del servidor
+## Configuration
 
-El fichero _server.conf_ permite al usuario configurar el servidor. Las configuraciones posibles son las siguientes:
+The _server.conf_ file allows to tweak certain parameters:
 
-1. *server-root* : La ruta, relativa a la ubicacion del ejecutable, donde se almacenarán los objetos de la web. El servidor nunca devolverá objetos que se encuentren por encima de esta ruta.
-2. *max-clients* : Numero máximo de clientes que se pueden conectar simultáneamente en un momento dado. Si se conectan más, la conexión se rechazará o se mantendrá en espera hasta que finalicen las existentes.
-3. *listen-port* : Número de puerto en el que escuchará el servidor. Debe ser un puerto que no se encuentre en uso. Por defecto, será el 8080.
-4. *server-signature* : Nombre del servidor que se incluirá en las cabeceras de respuesta.
-5. *daemon-mode* : Determina si el servidor se ejecuta en la terminal (0) o como demonio (1). En cualquier caso, la salida se imprimirá en el _syslog_ del sistema.
-6. *listen-queue* : Numero de conexiones entrantes que se mantendrán en espera en caso de que se haya alcanzado el valor _max-clients_. El resto se rechazarán.
-7. *read-timeout* : Si una conexión con un cliente que ha sido aceptada no responde durante el número de segundos que se indican aquí, se devolverá una respuesta _408 request timeout_.
+1. *server-root* : Path, relative to the program's file, that will store the web contents. Files above this path will never be returned by the server.
+2. *max-clients* : Maximum number of clients that can connect to the server in a given moment. More connections will result in waits or refusings, as specified in _listen-queue_
+3. *listen-port* : Must be an unusued port in which the server will start listening.
+4. *server-signature* : Server name that will be included in response header files.
+5. *daemon-mode* : Determines whether the server shall run "as is" (0) or should launch itself as a daemon (1). In any case, server output will be produced in the system log (_syslog_).
+6. *listen-queue* : Number of incoming connections that will be put on hold, in case _max-clients_ has been attained, before starting to refuse.
+7. *read-timeout* : Number of seconds that will be waited before sending a _408 request timeout_ on nonresponding clients.
 
-## Ejecución del servidor
+## Running the server
 
-Para ejecutar el servidor, basta con incluir en la ruta indicada en _server-root_ los objetos de la web deseada, y correr el ejecutable generado. El fichero raíz debe llamarse _index.html_.
+It suffices to include the website objects in the _server-root_ path and run the server. The website root shall be named _index.html_.
 
-Para parar el servidor, se envía una señal SIGINT al proceso en ejecución. Esto puede hacerse presionando _Ctrl+C_ en la terminal, si no está en modo demonio, o bien usando _kill_. Se incluye un script _killServer.sh_ que manda una señal SIGINT al proceso _server_ que se esté ejecutando como demonio. (No obstante, se recomienda precaución por si ya existe otro proceso con ese nombre).
+In order to properly stop the server, it must be signaled with a SIGINT. If running on an active terminal, this can be achieved by pressing _Ctrl+C_. Otherwise, use the _kill_ command (_kill -INT <pid>_). A shell script, _killServer.sh_, is included to automatically send the signal to the server. (CAUTION. Be aware that if other processes have the same name as the server one, they might be signaled as well. Script was included for debugging convenience, and shall never be used to stop the server in serious environments).
+
+## Features and future improvements
+
+Kindly refer to the [project's wiki](https://github.com/MiguelGonzalez2/HTTPSync/wiki/) to find out about what is supported, some details about the design, and some possible future roadmap.
